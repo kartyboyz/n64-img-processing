@@ -23,6 +23,12 @@ def pixelate(image, resolution):
 			cv.rectangle(display, (block*c, block*r), (block*c+block, block*r+block), [avg_b, avg_g, avg_r], -1)
 	return rv, display
 
+# Universal function for normalizing an image
+def normalize(image, range):
+	local_range = arr.max()-arr.min()
+	amin = arr.min()
+	return (arr-amin)*range/local_range
+
 class Detector:
 	def __init__(self, ROI_list, masks_path, freq):
 		self.ROI_list = ROI_list
@@ -35,6 +41,9 @@ class Detector:
 
 	def process(self, frame, cur_count):
 		cnt = 1
+
+		# Flow control
+		x = 1
 		for ROI in self.ROI_list:
 			# Extract ROI points
 			y0 = ROI[0][0]
@@ -45,7 +54,29 @@ class Detector:
 			# Pixelate current ROI in frame
 			region = frame[x0:x1, y0:y1]
 			f_pxl, f_disp = pixelate(region, resolution=4)
+			bf, gf, rf = cv.split(f_pxl)
+			cv.imshow('frame', f_disp)
 			for mask in self.masks:
+				print mask[1]
+				bm, gm, rm = cv.split(mask[0])
+				dif_b = sum(sum(abs(np.int16(bm) - np.int16(bf))))
+				dif_g = sum(sum(abs(np.int16(gm) - np.int16(gf))))
+				dif_r = sum(sum(abs(np.int16(rm) - np.int16(rf))))
+				print dif_r, dif_g, dif_b
+				tot = dif_b+dif_g+dif_r
+				if dif_b < 450 and dif_g < 450 and dif_r < 450 and tot <= 1030:
+					print '\t\t\tPlayer ' + str(cnt) + ' has ' + mask[1]
+					c = cv.waitKey(0)
+					if c == 27:
+						exit(0)
+			c = cv.waitKey(x)
+			if c is 27:
+				exit(0)
+			elif c is 32:
+				x ^= 1
+				cv.waitKey(0)
+
+			'''
 				# Compute Manhattan distance
 				distance = sum(sum(sum(abs(np.int16(f_pxl) - np.int16(mask[0])))))
 				if distance <= 1030:
@@ -55,7 +86,11 @@ class Detector:
 					c = cv.waitKey(0)
 					if c == 27:
 						exit(0)
+			'''
 			cnt = cnt+1
+
+class ItemDetector(Detector):
+	
 class Race:
 	def __init__(self, src):
 		self.name = src
@@ -75,17 +110,12 @@ class Race:
 		x=1
 		# Init
 		while True:
+			print 'NEWFRAME------------'
 			ret, self.cur_frame = self.capture.read()
 			cv.imshow(self.name, self.cur_frame)
 			for d in self.detectors:
 				d.detect(self.cur_frame, self.frame_cnt)
 			self.frame_cnt += 1
-			c = cv.waitKey(x) % 0x100
-			if c == 27:
-				break
-			elif c == 32:
-				x ^=  1
-				cv.waitKey(0)
 
 if __name__ == '__main__':
 	if len(sys.argv) < 2:
@@ -97,10 +127,10 @@ if __name__ == '__main__':
 
 	r = Race(sys.argv[1])
 	items_3p = Detector(ROI_list=[
-							((45, 34), (97, 74)),
-							((541,34), (593, 74)),
-							((45, 264), (97, 304)),
-							((541, 264), (593, 304))],
+							((45, 34), (97, 74))],
+							#((541,34), (593, 74)),
+							#((45, 264), (97, 304)),
+							#((541, 264), (593, 304))],
 						masks_path='./pxl_items/',
 						freq=1)
 	r.add_detector(items_3p)
