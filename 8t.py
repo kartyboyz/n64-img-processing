@@ -2,7 +2,11 @@ import numpy as np
 import cv2 as cv
 import os, sys
 
-# Universal function to average and downsize an image
+# Constants
+BLACK_FRAME_THRESHOLD = 6500000
+BLACK_PXL_THRESHOLD = 30
+
+# Global function to average and downsize an image
 def pixelate(image, resolution):
 	h, w, d = image.shape
 	block_size = (h/resolution, w/resolution)
@@ -22,6 +26,38 @@ def pixelate(image, resolution):
 			# Debug
 			cv.rectangle(display, (block*c, block*r), (block*c+block, block*r+block), [avg_b, avg_g, avg_r], -1)
 	return rv, display
+
+# Ignores black pixels in 'mask', ONE CHANNEL ONLY
+def manhattan(image, mask):
+	# Mask out background noise
+	image[mask <= BLACK_PXL_THRESHOLD] = mask[mask <= BLACK_PXL_THRESHOLD]
+	# Manhattan distance
+	manhattan = sum(sum(abs(np.int16(mask) - np.int16(image))))
+	return manhattan
+
+''' State Classes '''
+class Player:
+	def __init__(self):
+		# Status indicators
+		self.status = ''
+		self.cur_item = None
+		self.position = 0
+		self.lap = 0
+
+		# Trackers
+		self.last_update = 0
+
+		# Action-oriented variables
+		self.in_collision = False
+		self.in_shortcut = False
+		self.in_boost = False
+class Race:
+	def __init__(self):
+		self.num_players = 0
+		self.start_frame
+
+# Global instantiation
+
 
 # Parent class for all detectors
 class Detector:
@@ -48,17 +84,17 @@ class Detector:
 			# Pixelate current ROI in frame
 			region = frame[x0:x1, y0:y1]
 			f_pxl, f_disp = pixelate(region, resolution=4)
-			bf, gf, rf = cv.split(f_pxl)
-			#cv.imshow('frame', f_disp)
+			cv.imshow('frame', region)
 			for mask in self.masks:
 				print mask[1]
+				bf, gf, rf = cv.split(f_pxl)
 				bm, gm, rm = cv.split(mask[0])
 				dif_b = sum(sum(abs(np.int16(bm) - np.int16(bf))))
 				dif_g = sum(sum(abs(np.int16(gm) - np.int16(gf))))
 				dif_r = sum(sum(abs(np.int16(rm) - np.int16(rf))))
 				print dif_r, dif_g, dif_b
 				tot = dif_b+dif_g+dif_r
-				if dif_b < 420 and dif_g < 420 and dif_r < 420 and tot <= 1020:
+				if dif_b < 425 and dif_g < 425 and dif_r < 425 and tot <= 1040:
 					# Transfer control to child class
 					self.handle(frame, cur_count, player, mask)
 			c = cv.waitKey(x)
@@ -68,17 +104,69 @@ class Detector:
 				x ^= 1
 				cv.waitKey(0)
 			player += 1
-''' SPECIFIC detectors
-* ItemDetector: handles itemboxes for all players
+''' Specific Detectorsh
+PHASE 0
+- PlayerNumDetector: Determines number of players. Not derived from Detector class,
+					 and only runs until # of players is determined
+- RaceStartDetector: Determines when the race starts, looking for masks as defined by PlayerNumDetector
+
+PHASE 2
+- ItemDetector: Handles itemboxes for all players
 '''
+class PlayerNumDetector():
+	def __init__(self):
+		# Flags
+		self.done = False
+	def detect(self, frame, cur_count):
+		if not self.done:
+			# Threshold for true black
+			# XXX/TODO: This is really slow for actual black frames :(
+			frame[frame <= BLACK_PXL_THRESHOLD] = 0
+			if np.sum(frame) > BLACK_FRAME_THRESHOLD:
+				# Not black screen, check for lines
+				self.process(frame, cur_count)
+
+	def process(self, frame, cur_count):
+		''' Modes:
+				1 player:		No black lines intersecting video stream
+				2 players:		One long horizontal black line in video stream
+				3, 4 players:	Horizontal and vertical black lines in video stream
+		'''
+		gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+		(h, w) = gray.shape
+		# MK64-specific constants
+		LINE_PX_H = h/2
+		LINE_PX_W = w/2-3 # NOTE: -3 necessary because of asymmetry in frame
+		# Threhsold for true black
+		# Check ROI for black lines
+		v_test = h_test = False
+		black_count_w = np.sum(gray[:, LINE_PX_W] == 0)
+		black_count_h = np.sum(gray[LINE_PX_H, :] == 0)
+		if black_count_w >= h/2:
+			h_test = True
+		if black_count_h >= w/2:
+			v_test = True
+
+		if not v_test and h_test:
+			print '2P mode'
+		elif all((h_test, v_test)):
+			print '3P or 4P mode'
+		else:
+			print '1p mode'
+
+class LakituDetector(Detector):
+	def handle(self, frame, cur_count, player, mask):
+		print 'Found Lakitu!'
+		cv.waitKey(0)
+
 class ItemDetector(Detector):
 	def handle(self, frame, cur_count, player, mask):
 		print '\t\t\tPlayer ' + str(player) + ' has ' + mask[1]
-		c = cv.waitKey(0)
-		if c == 27:
-			exit(0)
+		#c = cv.waitKey(0)
+		#if c == 27:
+			#exit(0)
 
-class Race:
+class Engine:
 	def __init__(self, src):
 		self.name = src
 		self.capture = cv.VideoCapture(src)
@@ -88,19 +176,19 @@ class Race:
 		self.detectors = []
 		# Debug
 		cv.namedWindow(src, 1)
-		print '[Race] initialization complete.'
+		print '[Engine] initialization complete.'
 
 	def add_detector(self, detector):
-		self.detectors.append(detector)
+		self.detectors.extend(detector)
 
 	def process(self):
 		x=1
 		# Init
 		while True:
-			print 'NEWFRAME------------'
+			print '----[ Frame ' + str(self.frame_cnt) + ']----'
 			ret, self.cur_frame = self.capture.read()
 			cv.imshow(self.name, self.cur_frame)
-			cv.waitKey(1)
+			cv.waitKey(0)
 			for d in self.detectors:
 				d.detect(self.cur_frame, self.frame_cnt)
 			self.frame_cnt += 1
@@ -113,15 +201,26 @@ if __name__ == '__main__':
 	print '\t<ESC> exits program'
 	print '\t<space> pauses/unpauses current frame\n\n'
 
-	r = Race(sys.argv[1])
+# INITIALIZATION
+	r = Engine(sys.argv[1])
+	# Phase 0: Pre
+	num_players = PlayerNumDetector()
+	# Phase 1: Start
+	lakitu_detector = LakituDetector(ROI_list=[((164, 58), (200,108))],
+										masks_path='./start_masks/',
+										freq=1)
+	# Phase 2: During
 	items_3p = ItemDetector(ROI_list=[
-							((45, 34), (97, 74)),
-							((541,34), (593, 74)),
-							((45, 264), (97, 304)),
-							((541, 264), (593, 304))],
+							((45, 34), (97, 74))],
+							#((541,34), (593, 74)),
+							#((45, 264), (97, 304)),
+							#((541, 264), (593, 304))],
 						masks_path='./pxl_items/',
 						freq=1)
-	r.add_detector(items_3p)
+
+	# Prepare engine
+	r.add_detector([items_3p, lakitu_detector])
+# RUN
 	r.process()
 	cv.waitKey(0)
 	cv.destroyAllWindows()
