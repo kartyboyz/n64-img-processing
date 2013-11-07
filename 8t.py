@@ -87,7 +87,9 @@ class Detector:
 			row1 = ROI[1][1]
 			# Pixelate current ROI in frame
 			region = frame[row0:row1, col0:col1]
-			f_pxl, f_disp = pixelate(region, resolution=4)
+			# Gaussian Blur
+			region = cv.GaussianBlur(region,(3,3),0)
+			f_pxl, f_disp = pixelate(region, resolution=8)
 			for mask in self.masks:
 				# Ignore black pixels in mask
 				tmp_frame = f_pxl.copy()
@@ -95,9 +97,9 @@ class Detector:
 				mask[0][(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
 				# Debug
 				cv.imshow('FRAME', f_disp)
-				cv.imshow('POST', tmp_frame)
+				#cv.imshow('POST', tmp_frame)
 				# Determine distances
-				print mask[1]
+				#print mask[1]
 				bf, gf, rf = cv.split(tmp_frame)
 				bm, gm, rm = cv.split(mask[0])
 				dif_b = sum(sum(abs(np.int16(bm) - np.int16(bf))))
@@ -111,8 +113,8 @@ class Detector:
 					self.handle(frame, cur_count, player, mask)
 
 				# DEBUG
-				cv.imwrite('cur_f.png', tmp_frame)
-				cv.imwrite('cur_m.png', mask[0])
+				#cv.imwrite('cur_f.png', tmp_frame)
+				#cv.imwrite('cur_m.png', mask[0])
 				c = cv.waitKey(self.toggle)
 				if c is 27:
 					exit(0)
@@ -248,11 +250,11 @@ if __name__ == '__main__':
 	finish_race = FinishDetector(ROI_list=[
 							((35, 112), (145, 222)),
 							((495, 112), (605, 222)),
-							((35, 332), (145, 422)),
-							((495, 332), (605, 442))],
+							((32, 332), (142, 442))],
+							#((495, 332), (605, 442))],
 							masks_path='./pxl_finish/',
 							freq=1,
-							threshold_list=[500, 500, 500, 1400])
+							threshold_list=[300, 300, 300, 900])
 
 	# Prepare engine
 	r.add_detector([finish_race])
