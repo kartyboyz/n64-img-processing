@@ -1,16 +1,20 @@
+#!/usr/bin/env python
+
 import numpy as np
 import cv2 as cv
 import os, sys
 
+
 # Constants
 BLACK_FRAME_THRESHOLD = 6500000
-BLACK_PXL_THRESHOLD = 30
+BLACK_PXL_THRESHOLD = (50,50,50)
+TRUE_BLACK = (0,0,0)
 
 # Global function to average and downsize an image
 def pixelate(image, resolution):
-	h, w, d = image.shape
+	h, w, _ = image.shape
 	block_size = (h/resolution, w/resolution)
-	rv = np.zeros((resolution,resolution, 3), np.uint8)
+	rv = np.zeros((resolution, resolution, 3), np.uint8)
 	# Debug
 	display = np.zeros((160, 160, 3), np.uint8)
 	block = 160/resolution
@@ -54,17 +58,19 @@ class Player:
 class Race:
 	def __init__(self):
 		self.num_players = 0
-		self.start_frame
+		self.start_frame = 0
 
 # Global instantiation
-
+race = Race()
 
 # Parent class for all detectors
 class Detector:
-	def __init__(self, ROI_list, masks_path, freq):
+	def __init__(self, ROI_list, masks_path, freq, threshold_list):
 		self.ROI_list = ROI_list
 		self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
 		self.freq = freq
+		self.threshold_list = threshold_list
+		self.toggle = 0
 
 	def detect(self, frame, cur_count):
 		if cur_count % self.freq is 0:
@@ -73,46 +79,72 @@ class Detector:
 	def process(self, frame, cur_count):
 		# Player counter
 		player = 1
-		# Flow control
-		x = 1
 		for ROI in self.ROI_list:
 			# Extract ROI points
-			y0 = ROI[0][0]
-			y1 = ROI[1][0]
-			x0 = ROI[0][1]
-			x1 = ROI[1][1]
+			col0 = ROI[0][0]
+			col1 = ROI[1][0]
+			row0 = ROI[0][1]
+			row1 = ROI[1][1]
 			# Pixelate current ROI in frame
-			region = frame[x0:x1, y0:y1]
+			region = frame[row0:row1, col0:col1]
 			f_pxl, f_disp = pixelate(region, resolution=4)
-			cv.imshow('frame', region)
 			for mask in self.masks:
+				# Ignore black pixels in mask
+				tmp_frame = f_pxl.copy()
+				tmp_frame[(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
+				mask[0][(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
+				# Debug
+				cv.imshow('FRAME', f_disp)
+				cv.imshow('POST', tmp_frame)
+				# Determine distances
 				print mask[1]
-				bf, gf, rf = cv.split(f_pxl)
+				bf, gf, rf = cv.split(tmp_frame)
 				bm, gm, rm = cv.split(mask[0])
 				dif_b = sum(sum(abs(np.int16(bm) - np.int16(bf))))
 				dif_g = sum(sum(abs(np.int16(gm) - np.int16(gf))))
 				dif_r = sum(sum(abs(np.int16(rm) - np.int16(rf))))
 				print dif_r, dif_g, dif_b
 				tot = dif_b+dif_g+dif_r
-				if dif_b < 425 and dif_g < 425 and dif_r < 425 and tot <= 1040:
+				# Check values pass threshold test
+				if all(map(lambda a,b: a <= b, [dif_b, dif_g, dif_r, tot], self.threshold_list)):
 					# Transfer control to child class
 					self.handle(frame, cur_count, player, mask)
-			c = cv.waitKey(x)
-			if c is 27:
-				exit(0)
-			elif c is 32:
-				x ^= 1
-				cv.waitKey(0)
-			player += 1
-''' Specific Detectorsh
-PHASE 0
-- PlayerNumDetector: Determines number of players. Not derived from Detector class,
-					 and only runs until # of players is determined
-- RaceStartDetector: Determines when the race starts, looking for masks as defined by PlayerNumDetector
 
-PHASE 2
-- ItemDetector: Handles itemboxes for all players
-'''
+				# DEBUG
+				cv.imwrite('cur_f.png', tmp_frame)
+				cv.imwrite('cur_m.png', mask[0])
+				c = cv.waitKey(self.toggle)
+				if c is 27:
+					exit(0)
+				elif c is 32:
+					self.toggle ^= 1
+					cv.waitKey(0)
+			player += 1
+
+class StartDetector(Detector):
+	isStarted = False
+	def handle(self, frame, cur_count, player, mask):
+		x=0
+		isStarted = True
+		print '\t\tRace has started'
+		c = cv.waitKey(x)
+		if c is 27:
+			exit(0)
+		elif c is 32:
+			x ^= 1
+			cv.waitKey(0)
+
+class FinishDetector(Detector):
+	def handle(self, frame, cur_count, player, mask):
+		x=0
+		print 'Player ' + str(player) + ' gets ' + mask[1]
+		c = cv.waitKey(x)
+		if c is 27:
+			exit(0)
+		elif c is 32:
+			x ^= 1
+			cv.waitKey(0)
+
 class PlayerNumDetector():
 	def __init__(self):
 		# Flags
@@ -128,9 +160,9 @@ class PlayerNumDetector():
 
 	def process(self, frame, cur_count):
 		''' Modes:
-				1 player:		No black lines intersecting video stream
-				2 players:		One long horizontal black line in video stream
-				3, 4 players:	Horizontal and vertical black lines in video stream
+				1 player:       No black lines intersecting video stream
+				2 players:      One long horizontal black line in video stream
+				3, 4 players:   Horizontal and vertical black lines in video stream
 		'''
 		gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
 		(h, w) = gray.shape
@@ -154,17 +186,14 @@ class PlayerNumDetector():
 		else:
 			print '1p mode'
 
-class LakituDetector(Detector):
-	def handle(self, frame, cur_count, player, mask):
-		print 'Found Lakitu!'
-		cv.waitKey(0)
 
 class ItemDetector(Detector):
 	def handle(self, frame, cur_count, player, mask):
 		print '\t\t\tPlayer ' + str(player) + ' has ' + mask[1]
-		#c = cv.waitKey(0)
-		#if c == 27:
-			#exit(0)
+		c = cv.waitKey(0)
+		if c == 27:
+			exit(0)
+
 
 class Engine:
 	def __init__(self, src):
@@ -188,9 +217,9 @@ class Engine:
 			print '----[ Frame ' + str(self.frame_cnt) + ']----'
 			ret, self.cur_frame = self.capture.read()
 			cv.imshow(self.name, self.cur_frame)
-			cv.waitKey(0)
 			for d in self.detectors:
 				d.detect(self.cur_frame, self.frame_cnt)
+
 			self.frame_cnt += 1
 
 if __name__ == '__main__':
@@ -205,21 +234,29 @@ if __name__ == '__main__':
 	r = Engine(sys.argv[1])
 	# Phase 0: Pre
 	num_players = PlayerNumDetector()
+
 	# Phase 1: Start
-	lakitu_detector = LakituDetector(ROI_list=[((164, 58), (200,108))],
-										masks_path='./start_masks/',
-										freq=1)
 	# Phase 2: During
 	items_3p = ItemDetector(ROI_list=[
-							((45, 34), (97, 74))],
-							#((541,34), (593, 74)),
-							#((45, 264), (97, 304)),
-							#((541, 264), (593, 304))],
-						masks_path='./pxl_items/',
-						freq=1)
+							((45, 34), (97, 74)),
+							((541,34), (593, 74)),
+							((45, 264), (97, 304)),
+							((541, 264), (593, 304))],
+							masks_path='./pxl_items/',
+							freq=1,
+							threshold_list=[425, 425, 425, 1040])
+	finish_race = FinishDetector(ROI_list=[
+							((35, 112), (145, 222)),
+							((495, 112), (605, 222)),
+							((35, 332), (145, 422)),
+							((495, 332), (605, 442))],
+							masks_path='./pxl_finish/',
+							freq=1,
+							threshold_list=[500, 500, 500, 1400])
 
 	# Prepare engine
-	r.add_detector([items_3p, lakitu_detector])
+	r.add_detector([finish_race])
+
 # RUN
 	r.process()
 	cv.waitKey(0)
