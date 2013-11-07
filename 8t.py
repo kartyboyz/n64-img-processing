@@ -99,7 +99,7 @@ class Detector:
 				cv.imshow('FRAME', f_disp)
 				#cv.imshow('POST', tmp_frame)
 				# Determine distances
-				#print mask[1]
+				print mask[1]
 				bf, gf, rf = cv.split(tmp_frame)
 				bm, gm, rm = cv.split(mask[0])
 				dif_b = sum(sum(abs(np.int16(bm) - np.int16(bf))))
@@ -215,10 +215,10 @@ class Engine:
 	def process(self):
 		x=1
 		# Init
-		while True:
+		while self.cur_frame is not None:
 			print '----[ Frame ' + str(self.frame_cnt) + ']----'
-			ret, self.cur_frame = self.capture.read()
 			cv.imshow(self.name, self.cur_frame)
+			ret, self.cur_frame = self.capture.read()
 			for d in self.detectors:
 				d.detect(self.cur_frame, self.frame_cnt)
 
@@ -254,7 +254,7 @@ if __name__ == '__main__':
 							#((495, 332), (605, 442))],
 							masks_path='./pxl_finish/',
 							freq=1,
-							threshold_list=[300, 300, 300, 900])
+							threshold_list=[420, 420, 420, 1650])
 
 	# Prepare engine
 	r.add_detector([finish_race])
