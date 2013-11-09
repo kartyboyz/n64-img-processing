@@ -1,14 +1,29 @@
-N64 Image Processing
-==============
+# Event detection API
 
-Overview
---------------
-This repository contains the majority (if not all) of the work concerning the image processing for our senior design project. 
+This repository holds the event detection API for the n64 analytics engine.
 
-Branches
---------------
-At the time of writing, there are three branches:
+It is responsible for receiving video, dispatching info for splitting sessions into races, and detecting events within each race.
 
-- **master:** Contains all implemented and tested features
-- **jmickos/detection:** Johan's main branch for developing object detection and recognition
-- **navonj/detection:** Josh's main branch for developing object detection and recognition
+Not everything works, currently.
+
+## Features
+
+This API offers the following features:
+
+* Start time detection
+* End time detection
+* Individual race time detection
+* Lap time detection
+* Item receipt detection
+* Collision detection (shells, bananas, and fake item boxes)
+* Drift boost detection
+
+Phase 0 --------- Send start time and race duration to server for splitting.
+
+Phase 1 --------- Extract number of players, map, and player characters.
+
+Phase 2 --------- General event detection by race.
+
+Phase 3 --------- Send race statistics off to database server.
+
+Right now, only phase 0 works.
