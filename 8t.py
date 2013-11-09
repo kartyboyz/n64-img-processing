@@ -4,11 +4,13 @@ import numpy as np
 import cv2 as cv
 import os, sys
 
-
 # Constants
 BLACK_FRAME_THRESHOLD = 6500000
 BLACK_PXL_THRESHOLD = (50,50,50)
 TRUE_BLACK = (0,0,0)
+
+# Global flags
+isStarted = False
 
 # Global function to average and downsize an image
 def pixelate(image, resolution):
@@ -40,7 +42,7 @@ def manhattan(image, mask):
 	return manhattan
 
 ''' State Classes '''
-class Player:
+class Player(object):
 	def __init__(self):
 		# Status indicators
 		self.status = ''
@@ -55,7 +57,7 @@ class Player:
 		self.in_collision = False
 		self.in_shortcut = False
 		self.in_boost = False
-class Race:
+class Race(object):
 	def __init__(self):
 		self.num_players = 0
 		self.start_frame = 0
@@ -64,7 +66,7 @@ class Race:
 race = Race()
 
 # Parent class for all detectors
-class Detector:
+class Detector(object):
 	def __init__(self, ROI_list, masks_path, freq, threshold_list):
 		self.ROI_list = ROI_list
 		self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
@@ -124,9 +126,10 @@ class Detector:
 			player += 1
 
 class StartDetector(Detector):
-	isStarted = False
 	def handle(self, frame, cur_count, player, mask):
 		x=0
+		global isStarted
+		# Set isStarted to True since race has started
 		isStarted = True
 		print '\t\tRace has started'
 		c = cv.waitKey(x)
@@ -147,7 +150,7 @@ class FinishDetector(Detector):
 			x ^= 1
 			cv.waitKey(0)
 
-class PlayerNumDetector():
+class PlayerNumDetector(object):
 	def __init__(self):
 		# Flags
 		self.done = False
@@ -187,6 +190,53 @@ class PlayerNumDetector():
 			print '3P or 4P mode'
 		else:
 			print '1p mode'
+
+class EndRaceDetector(object):
+	def __init__(self):
+		self.toggle = 0
+	def detect(self, frame, cur_count):
+		# If race hasn't started, still on map selection, or player selection pages, do not process
+		if isStarted:
+			# Threshold for true black
+			# XXX/TODO: This is really slow for actual black frames :(
+			frame[frame <= BLACK_PXL_THRESHOLD] = 0
+			if np.sum(frame) > BLACK_FRAME_THRESHOLD:
+				# Not black screen, check for lines
+				self.process(frame, cur_count)
+
+	def process(self, frame, cur_count):
+		x = 0
+		gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+		# [CONSTANTS] h = 480, w = 640
+		(h, w) = gray.shape
+		# Position of horizontal black line on screen
+		LINE_PX_H = h/2 - 1
+		# Check ROI for black lines
+		black_count_h = np.sum(gray[LINE_PX_H, :] == 0)
+		print black_count_h
+		# Using w-40 as threshold to lower false positive rate
+		if black_count_h <= w - 40:
+			self.handle(frame, cur_count)
+		c = cv.waitKey(self.toggle)
+		if c is 27:
+			exit(0)
+		elif c is 32:
+			self.toggle ^= 1
+			cv.waitKey(0)
+
+	def handle(self, frame, cur_count):
+		x = 0
+		global isStarted
+		# Set isStarted back to False in order to process another race
+		isStarted = False
+		print 'End of race detected'
+		c = cv.waitKey(x)
+		if c is 27:
+			exit(0)
+		elif c is 32:
+			x ^= 1
+			cv.waitKey(0)
+		
 
 
 class ItemDetector(Detector):
@@ -232,11 +282,16 @@ if __name__ == '__main__':
 	print '\t<ESC> exits program'
 	print '\t<space> pauses/unpauses current frame\n\n'
 
-# INITIALIZATION
+	# INITIALIZATION
 	r = Engine(sys.argv[1])
 	# Phase 0: Pre
 	num_players = PlayerNumDetector()
-
+	start_race = StartDetector(ROI_list=[
+			((167, 52), (182, 102))],
+				   masks_path='./pxl_start/',
+				   freq=1,
+				   threshold_list=[425, 425, 425, 1040])
+	race_end = EndRaceDetector()
 	# Phase 1: Start
 	# Phase 2: During
 	items_3p = ItemDetector(ROI_list=[
@@ -257,7 +312,7 @@ if __name__ == '__main__':
 							threshold_list=[420, 420, 420, 1650])
 
 	# Prepare engine
-	r.add_detector([finish_race])
+	r.add_detector([start_race, race_end])
 
 # RUN
 	r.process()
