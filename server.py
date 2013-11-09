@@ -1,50 +1,47 @@
 import requests
-from flask import Flask
 import json
+from flask import Flask
+
+import phase_0
+import database
 
 # System defaults. Will be overrideable at a later time
 server = 'http://localhost'
 port = 5001
 
-app = Flask()
+app = Flask(__name__)
 
-@app.route('/')
-def rcv_session_id():
+def download_race(video_url):
+    f = tempfile.NamedTemporaryFile()
+    chunk_size = 4 * 1024 * 1024
+    try:
+        req = urllib2.urlopen(video_url)
+        while True:
+            chunk = req.read(chunk_size)
+            if not chunk: break
+            f.write(chunk)
+        f.flush()
+        return f
+    except urllib2.HTTPError:
+        print "Couldn't download ", session
+        return None
+    except urllib2.URLError:
+        print "Couldn't download ", session
+        return None
 
+def find_races(session_id, video_file):
+    phase_0.main(session_id, video_file)
 
-def get_session(session_id):
-    '''
-    Communicates with database to extract information for a given session.
-    If session_id == 0, returns all sessions in database
-    '''
-    global server, port
-    session = '/sessions'
-    if session_id is not 0:
-        session += '/' + str(session_id)
-    payload = '%s:%d%s'%(server, port, session)
-    response = requests.get(payload)
-    print response.text
-    return response
+@app.route('/race_detection/<int:session_id>')
+def rcv_session_id(session_id):
+    # Fetch URL
+    session = database.get_session(session_id)
+    video_url = session.json()[u'video_url']
+    # Download movie
+    video_file = download_race(video_url)
+    # Pass control to processing
+    find_races(session_id, video_file)
+    return 'Completed phase 0 for session_id %d\n' % session_id
 
-def get_races(session_id):
-    '''
-    Communicates with database to extract information about races in session
-    '''
-    global server, port
-    path = '/sessions/%d/races'%(session_id)
-    payload = '%s:%d%s'%(server, port, path)
-    response = requests.get(payload)
-    print response.text
-    return response
-
-def put_race(session_id, start_time, duration):
-    '''
-    Sends race JSON object to database for storage.
-    '''
-    global server, port
-    url = '%s:%d/sessions/%d/races'%(server, port, session_id)
-    payload = {'start_time' : start_time, 'duration' : duration}
-    headers = {'content-type': 'application/json'}
-    response = requests.post(url, data=json.dumps(payload), headers=headers)
-    print response.text
-    return response
+if __name__ == '__main__':
+    app.run(port=port)

@@ -6,6 +6,8 @@ import os, sys
 import detection
 
 
+def test(session_id, video_file):
+	print '[PHASE 0]: ', session_id, video_file
 
 def main(session_id, video_file):
 	# INITIALIZATION
