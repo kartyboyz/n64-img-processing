@@ -1,9 +1,16 @@
 import requests
+from flask import Flask
 import json
 
 # System defaults. Will be overrideable at a later time
 server = 'http://localhost'
-port = 5000
+port = 5001
+
+app = Flask()
+
+@app.route('/')
+def rcv_session_id():
+
 
 def get_session(session_id):
     '''
