@@ -4,7 +4,7 @@ import numpy as np
 import cv as cv1
 import cv2 as cv
 import os, sys
-import server
+import database
 from math import floor, ceil
 
 
@@ -116,8 +116,9 @@ class Detector(object):
 
 
 class EndRaceDetector(object):
-	def __init__(self):
+	def __init__(self, session_id):
 		self.toggle = 0
+		self.session_id
 	def detect(self, frame, cur_count):
 		# If race hasn't started, still on map selection, or player selection pages, do not process
 		if isStarted:
@@ -156,7 +157,7 @@ class EndRaceDetector(object):
                 global race
                 # Put the race duration in the dictionary
                 race['race_duration'] = ceil((cur_count / race['frame_rate']) - race['start_time'])
-		#server.put_race(race['start_time'], race['race_duration'])
+		database.put_race(self.session_id, race['start_time'], race['race_duration'])
                 print race
 		print 'End of race detected'
 		c = cv.waitKey(x)
