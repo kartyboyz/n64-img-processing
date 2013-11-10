@@ -2,12 +2,9 @@
 import numpy as np
 import cv as cv1
 import cv2 as cv
-import os, sys
+import os
 import database
 from math import floor, ceil
-
-# Global flags
-isStarted = False
 
 # Constants
 BLACK_FRAME_THRESHOLD = 6500000
@@ -15,7 +12,8 @@ BLACK_PXL_THRESHOLD = (50,50,50)
 TRUE_BLACK = (0,0,0)
 
 # JSON Container for race information
-race = {'num_players':   0,
+race = {'is_started':    False,
+        'num_players':   0,
         'session_id':    0,
         'start_time':    0,
         'race_duration': 0,
@@ -57,8 +55,6 @@ class Detector(object):
         self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
         self.freq = freq
         self.threshold_list = threshold_list
-        # Debug
-        self.toggle = 0
 
     def detect(self, frame, cur_count):
         if cur_count % self.freq is 0:
@@ -81,95 +77,22 @@ class Detector(object):
                 tmp_frame = f_pxl.copy()
                 tmp_frame[(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
                 mask[0][(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
-                # Debug
-                cv.imshow('FRAME', f_disp)
                 # Determine distances
-                print mask[1]
                 bf, gf, rf = cv.split(tmp_frame)
                 bm, gm, rm = cv.split(mask[0])
                 dif_b = sum(sum(abs(np.int16(bm) - np.int16(bf))))
                 dif_g = sum(sum(abs(np.int16(gm) - np.int16(gf))))
                 dif_r = sum(sum(abs(np.int16(rm) - np.int16(rf))))
+                print mask[1]
                 print dif_r, dif_g, dif_b
                 tot = dif_b+dif_g+dif_r
                 # Check values pass threshold test
                 if all(map(lambda a,b: a <= b, [dif_b, dif_g, dif_r, tot], self.threshold_list)):
                     # Transfer control to child class
                     self.handle(frame, cur_count, player, mask)
-                # DEBUG
-                #cv.imwrite('cur_f.png', tmp_frame)
-                #cv.imwrite('cur_m.png', mask[0])
+                # Debug
+                cv.imshow('FRAME', f_disp)
             player += 1
-
-class EndRaceDetector(object):
-    def __init__(self, session_id):
-        self.session_id = session_id
-
-    def detect(self, frame, cur_count):
-        # If race hasn't started, still on map selection, or player selection pages, do not process
-        if isStarted:
-            self.process(frame, cur_count)
-
-    def process(self, frame, cur_count):
-         # Threshold for true black
-        # XXX/TODO: This is REALLY slow for actual black frames :(
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        # ROI is the verticle black line separator. Then threshold.
-        gray = gray[239, :]
-        gray[gray <= 50] = 0
-        h = gray.shape[0]
-        # Check ROI for black lines
-        black_count_h = np.sum(gray == 0)
-        # Using w-40 as threshold to lower false positive rate
-        if black_count_h <= h - 40:
-            self.handle(frame, cur_count)
-
-    def handle(self, frame, cur_count):
-        x = 0
-        global isStarted
-        global race
-        # Set isStarted back to False in order to process another race
-        isStarted = False
-        # Put the race duration in the dictionary
-        race['race_duration'] = ceil((cur_count / race['frame_rate']) - race['start_time']) + 7
-        print race['race_duration']
-        database.put_race(self.session_id, race['start_time'], race['race_duration'])
-        print 'End of race detected'
-        cv.waitKey()
-
-class Engine(object):
-    def __init__(self, src):
-        global race
-        self.name = src
-        self.capture = cv.VideoCapture(src)
-        race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
-        self.ret, self.cur_frame = self.capture.read()
-        self.avg_frames = np.float32(self.cur_frame)
-        self.frame_cnt = 1
-        self.detectors = []
-        # Debug
-        cv.namedWindow(src, 1)
-        self.toggle = 1
-        print '[Engine] initialization complete.'
-
-    def add_detector(self, detector):
-        self.detectors.extend(detector)
-
-    def process(self):
-        # Init
-        while self.cur_frame is not None:
-            print '----[ Frame ' + str(self.frame_cnt) + ']----'
-            cv.imshow(self.name, self.cur_frame)
-            ret, self.cur_frame = self.capture.read()
-            for d in self.detectors:
-                d.detect(self.cur_frame, self.frame_cnt)
-            self.frame_cnt += 1
-            print self.toggle
-            c = cv.waitKey(self.toggle)
-            if c is 27:
-                return
-            elif c is 32:
-                self.toggle ^= 1
 
 class ItemDetector(Detector):
     def handle(self, frame, cur_count, player, mask):
@@ -219,17 +142,85 @@ class PlayerNumDetector(object):
 
 class StartRaceDetector(Detector):
     def handle(self, frame, cur_count, player, mask):
-            x=0
-            global isStarted
             global race
-            # Set isStarted to True since race has started
-            isStarted = True
+            # Set race['is_started'] to True since race has started
+            race['is_started'] = True
             # Put the start time of the race into the dictionary
             race['start_time'] = floor(cur_count / race['frame_rate']) - 6
-            print race['start_time']
             print '\t\tRace has started'
             cv.waitKey()
 
     def detect(self, cur_frame, frame_cnt):
-        if not isStarted:
+        if not race['is_started']:
             super(StartRaceDetector, self).detect(cur_frame, frame_cnt)
+
+class EndRaceDetector(object):
+    def __init__(self, session_id):
+        self.session_id = session_id
+
+    def detect(self, frame, cur_count):
+        # If race hasn't started, still on map selection, or player selection pages, do not process
+        if race['is_started']:
+            self.process(frame, cur_count)
+
+    def process(self, frame, cur_count):
+         # Threshold for true black
+        # XXX/TODO: This is REALLY slow for actual black frames :(
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        # ROI is the verticle black line separator. Then threshold.
+        gray = gray[239, :]
+        gray[gray <= 50] = 0
+        h = gray.shape[0]
+        # Check ROI for black lines
+        black_count_h = np.sum(gray == 0)
+        # Using w-40 as threshold to lower false positive rate
+        if black_count_h <= h - 40:
+            self.handle(frame, cur_count)
+
+    def handle(self, frame, cur_count):
+        global race
+        # Set race['is_started'] back to False in order to process another race
+        race['is_started'] = False
+        # Put the race duration in the dictionary
+        race['race_duration'] = ceil((cur_count / race['frame_rate']) - race['start_time']) + 7
+        database.put_race(self.session_id, race['start_time'], race['race_duration'])
+        print 'End of race detected'
+        cv.waitKey()
+
+class Engine(object):
+    def __init__(self, src):
+        global race
+        self.name = src
+        self.capture = cv.VideoCapture(src)
+        race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
+        self.ret, self.cur_frame = self.capture.read()
+        self.avg_frames = np.float32(self.cur_frame)
+        self.frame_cnt = 1
+        self.detectors = []
+        # Debug
+        cv.namedWindow(src, 1)
+        self.toggle = 1
+        print '[Engine] initialization complete.'
+
+    def add_detector(self, detector):
+        self.detectors.extend(detector)
+
+    def process(self):
+        # Init
+        while self.cur_frame is not None:
+            cv.imshow(self.name, self.cur_frame)
+            for d in self.detectors:
+                d.detect(self.cur_frame, self.frame_cnt)
+            ret, self.cur_frame = self.capture.read()
+            self.frame_cnt += 1
+            c = cv.waitKey(self.toggle)
+            print
+            if c is 27:
+                return
+            elif c is 32:
+                self.toggle ^= 1
+        self.teardown()
+
+    def teardown(self):
+        self.capture.release()
+        cv.destroyAllWindows()

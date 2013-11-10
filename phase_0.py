@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-import numpy as np
-import cv2 as cv
-import os, sys
+import sys
 import detection
 
 def main(session_id, video_file):
@@ -16,13 +14,11 @@ def main(session_id, video_file):
 
     # Prepare engine
     r.add_detector([start_race, race_end])
-
     # Process
     r.process()
-    cv.destroyAllWindows()
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
+    if len(sys.argv) is not 3:
         print 'Please specify video file.'
         exit(-1)
     print 'Instructions:'
