@@ -108,24 +108,20 @@ class EndRaceDetector(object):
     def detect(self, frame, cur_count):
         # If race hasn't started, still on map selection, or player selection pages, do not process
         if isStarted:
-            # Threshold for true black
-            # XXX/TODO: This is REALLY slow for actual black frames :(
-            tmp_frame = frame.copy()
-            tmp_frame[tmp_frame <= BLACK_PXL_THRESHOLD] = 0
-            if np.sum(tmp_frame) > BLACK_FRAME_THRESHOLD:
-                # Not black screen, check for lines
-                self.process(tmp_frame, cur_count)
+            self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
+         # Threshold for true black
+        # XXX/TODO: This is REALLY slow for actual black frames :(
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        # [CONSTANTS] h = 480, w = 640
-        (h, w) = gray.shape
-        # Position of horizontal black line on screen
-        LINE_PX_H = h/2 - 1
+        # ROI is the verticle black line separator. Then threshold.
+        gray = gray[239, :]
+        gray[gray <= 50] = 0
+        h = gray.shape[0]
         # Check ROI for black lines
-        black_count_h = np.sum(gray[LINE_PX_H, :] == 0)
+        black_count_h = np.sum(gray == 0)
         # Using w-40 as threshold to lower false positive rate
-        if black_count_h <= w - 40:
+        if black_count_h <= h - 40:
             self.handle(frame, cur_count)
 
     def handle(self, frame, cur_count):
