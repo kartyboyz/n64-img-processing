@@ -1,9 +1,10 @@
-import requests
-import json
 from flask import Flask
+import json
+import urllib2
 
 import phase_0
 import database
+import tempfile
 
 # System defaults. Will be overrideable at a later time
 server = 'http://localhost'
@@ -23,10 +24,10 @@ def download_race(video_url):
         f.flush()
         return f
     except urllib2.HTTPError:
-        print "Couldn't download ", session
+        print "Couldn't download ", vieo_url
         return None
     except urllib2.URLError:
-        print "Couldn't download ", session
+        print "Couldn't download ", vieo_url
         return None
 
 def find_races(session_id, video_file):
@@ -34,6 +35,7 @@ def find_races(session_id, video_file):
 
 @app.route('/race_detection/<int:session_id>')
 def rcv_session_id(session_id):
+    # TODO: Launch phase 0 as subprocess/background process and return immediately
     # Fetch URL
     session = database.get_session(session_id)
     video_url = session.json()[u'video_url']

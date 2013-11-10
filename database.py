@@ -1,6 +1,5 @@
-import requests
-from flask import Flask
 import json
+import requests
 
 # System defaults. Will be overrideable at a later time
 server = 'http://localhost'
