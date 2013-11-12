@@ -4,6 +4,7 @@ import os
 import threading
 import multiprocessing
 import urllib2
+import requests
 
 import phase_0
 import database
@@ -39,6 +40,7 @@ def find_races(session_id, video_url):
     if video_file is None:
         return -1
     phase_0.main(session_id, video_file)
+    requests.post('http://localhost:5002/video_done/%d'% session_id)
 
 @app.route('/race_detection/<int:session_id>', methods=['POST'])
 def rcv_session_id(session_id):
