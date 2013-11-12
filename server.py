@@ -53,4 +53,4 @@ def rcv_session_id(session_id):
     return 'Launched job for session ID %d\n' % session_id
 
 if __name__ == '__main__':
-    app.run(port=port)
+    app.run(host='0.0.0.0', port=port)
