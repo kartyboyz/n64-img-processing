@@ -231,5 +231,25 @@ class StartRaceDetector(Detector):
             cv.waitKey()
 
     def detect(self, cur_frame, frame_cnt):
+        # If race hasn't started, initiate detection.
         if not isStarted:
             super(StartRaceDetector, self).detect(cur_frame, frame_cnt)
+
+class RageQuit(Detector):
+    def detect(self, cur_frame, frame_cnt):
+        if isStarted:
+            super(RageQuit, self).detect(cur_frame, frame_cnt)
+
+    def reset(self):
+        global isStarted
+        global race
+        # Reset state variables so that the next race can be processed
+        isStarted = False
+        race['start_time'] = 0
+        race['race_duration'] = 0
+        race['num_players'] = 0
+
+    def handle(self, frame, cur_count, player, mask):
+        print 'Rage Quit Detected'
+        self.reset()
+        cv.waitKey()
