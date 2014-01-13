@@ -84,17 +84,10 @@ class Detector(object):
                 # Debug
                 cv.imshow('FRAME', f_disp)
                 # Determine distances
-                print mask[1]
-                bf, gf, rf = cv.split(tmp_frame)
-                bm, gm, rm = cv.split(mask[0])
-                dif_b = sum(sum(abs(np.int16(bm) - np.int16(bf))))
-                dif_g = sum(sum(abs(np.int16(gm) - np.int16(gf))))
-                dif_r = sum(sum(abs(np.int16(rm) - np.int16(rf))))
-                print dif_r, dif_g, dif_b
-                tot = dif_b+dif_g+dif_r
-                # Check values pass threshold test
-                if all(map(lambda a,b: a <= b, [dif_b, dif_g, dif_r, tot], self.threshold_list)):
-                    # Transfer control to child class
+                # Determine distances
+                distance = cv.matchTemplate(tmp_frame, mask[0], cv.TM_SQDIFF_NORMED)
+                print mask[1], distance
+                if distance < 0.16:
                     self.handle(frame, cur_count, player, mask)
                 # DEBUG
                 #cv.imwrite('cur_f.png', tmp_frame)

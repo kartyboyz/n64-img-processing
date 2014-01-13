@@ -11,7 +11,6 @@ def main(session_id, video_file):
                                             freq=1,
                                             threshold_list=[425, 425, 425, 1040])
     race_end = detection.EndRaceDetector(session_id)
-
     # Prepare engine
     r.add_detector([start_race, race_end])
     # Process
@@ -19,7 +18,9 @@ def main(session_id, video_file):
 
 if __name__ == '__main__':
     if len(sys.argv) is not 3:
-        print 'Please specify video file.'
+        print 'Please specify a session ID and video file.'
+        print 'Usage:'
+        print sys.argv[0], ' session_id video_source'
         exit(-1)
     print 'Instructions:'
     print '\t<ESC> exits program'
