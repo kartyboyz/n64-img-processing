@@ -26,17 +26,16 @@ race =    {'num_players':   0,
            'race_duration': 0,
            'frame_rate':    0
           }
-buffers = {
-            'items': collections.deque(maxlen=10)
-          }
 
 # Parent class for all detectors
 class Detector(object):
-    def __init__(self, ROI_list, masks_path, freq, threshold):
+    def __init__(self, ROI_list, masks_path, freq, threshold, buf_len=None):
         self.ROI_list = ROI_list
         self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
         self.freq = freq
         self.threshold = threshold
+        if buf_len:
+            self.buffer = utility.RingBuffer(buf_len)
         # Debug
         self.toggle = 0
 
@@ -55,7 +54,7 @@ class Detector(object):
             row1 = ROI[1][1]
             # Pixelate current ROI in frame
             region = frame[row0:row1, col0:col1]
-            f_pxl, f_disp = pixelate(region, resolution=8)
+            f_pxl, f_disp = utility.pixelate(region, resolution=8)
             for mask in self.masks:
                 # Ignore black pixels in mask
                 tmp_frame = f_pxl.copy()
@@ -70,8 +69,8 @@ class Detector(object):
                 if distance < self.threshold:
                     self.handle(frame, cur_count, player, mask)
                 # DEBUG
-                #cv.imwrite('cur_f.png', tmp_frame)
-                #cv.imwrite('cur_m.png', mask[0])
+                cv.imwrite('cur_f.png', tmp_frame)
+                cv.imwrite('cur_m.png', mask[0])
             player += 1
 
 class EndRaceDetector(object):
@@ -113,7 +112,12 @@ class EndRaceDetector(object):
 
 class ItemDetector(Detector):
     def handle(self, frame, cur_count, player, mask):
-        print '\t\t\tPlayer ' + str(player) + ' has ' + mask[1]
+        self.buffer.append(mask[1])
+        if self.buffer.all_same():
+            print '\t\t\tPlayer ' + str(player) + ' has ' + mask[1]
+            cv.waitKey()
+            # Update JSON!
+            self.buffer.clear()
 
 class PlayerNumDetector(object):
     def __init__(self):
@@ -215,9 +219,9 @@ class Engine(object):
         while self.cur_frame is not None:
             print '----[ Frame ' + str(self.frame_cnt) + ']----'
             cv.imshow(self.name, self.cur_frame)
-            ret, self.cur_frame = self.capture.read()
             for d in self.detectors:
                 d.detect(self.cur_frame, self.frame_cnt)
+            ret, self.cur_frame = self.capture.read()
             self.frame_cnt += 1
             c = cv.waitKey(self.toggle)
             if c is 27:

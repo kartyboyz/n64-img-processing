@@ -9,10 +9,16 @@ def main(session_id, video_file):
                                             ((167, 52), (182, 102))],
                                             masks_path='./pxls/pxl_start/',
                                             freq=1,
-                                            threshold_list=[425, 425, 425, 1040])
+                                            threshold=0.06)
     race_end = detection.EndRaceDetector(session_id)
+    items = detection.ItemDetector(ROI_list=[
+                                            ((45, 34), (97, 74))],
+                                            masks_path='./pxls/pxl_items/',
+                                            freq=1,
+                                            threshold=0.16,
+                                            buf_len=8)
     # Prepare engine
-    r.add_detector([start_race, race_end])
+    r.add_detector([start_race, race_end, items])
     # Process
     r.process()
 

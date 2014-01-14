@@ -46,5 +46,11 @@ class RingBuffer(deque):
         if len(self) == self.__max_size:
             self.popleft()
 
+    def all_same(self):
+        if self.count(self[0]) is (self.__max_size-1):
+            return True;
+        else:
+            return False;
+
     def tolist(self):
         return list(self)
