@@ -1,12 +1,15 @@
 #!/usr/bin/env python
+import collections
+import database
+from math import floor, ceil
+import os
+import sys
+
 import numpy as np
 import cv as cv1
 import cv2 as cv
-import os, sys
-import database
-from math import floor, ceil
 
-from utility import pixelate
+import utility
 
 # Global flags
 isStarted = False
@@ -17,12 +20,15 @@ BLACK_PXL_THRESHOLD = (50,50,50)
 TRUE_BLACK = (0,0,0)
 
 # JSON Container for race information
-race = {'num_players':   0,
-        'session_id':    0,
-        'start_time':    0,
-        'race_duration': 0,
-        'frame_rate':    0}
-
+race =    {'num_players':   0,
+           'session_id':    0,
+           'start_time':    0,
+           'race_duration': 0,
+           'frame_rate':    0
+          }
+buffers = {
+            'items': collections.deque(maxlen=10)
+          }
 
 # Parent class for all detectors
 class Detector(object):
@@ -104,39 +110,6 @@ class EndRaceDetector(object):
         print 'End of race detected'
         cv.waitKey()
 
-class Engine(object):
-    def __init__(self, src):
-        global race
-        self.name = src
-        self.capture = cv.VideoCapture(src)
-        race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
-        self.ret, self.cur_frame = self.capture.read()
-        self.avg_frames = np.float32(self.cur_frame)
-        self.frame_cnt = 1
-        self.detectors = []
-        # Debug
-        cv.namedWindow(src, 1)
-        self.toggle = 1
-        print '[Engine] initialization complete.'
-
-    def add_detector(self, detector):
-        self.detectors.extend(detector)
-
-    def process(self):
-        # Init
-        while self.cur_frame is not None:
-            print '----[ Frame ' + str(self.frame_cnt) + ']----'
-            cv.imshow(self.name, self.cur_frame)
-            ret, self.cur_frame = self.capture.read()
-            for d in self.detectors:
-                d.detect(self.cur_frame, self.frame_cnt)
-            self.frame_cnt += 1
-            print self.toggle
-            c = cv.waitKey(self.toggle)
-            if c is 27:
-                return
-            elif c is 32:
-                self.toggle ^= 1
 
 class ItemDetector(Detector):
     def handle(self, frame, cur_count, player, mask):
@@ -149,10 +122,8 @@ class PlayerNumDetector(object):
 
     def detect(self, frame, cur_count):
         if not self.done:
-            # Threshold for true black
-            # XXX/TODO: This is really slow for actual black frames :(
-            # Potential workaround: Actually specify an ROI to look at before thresholding
-            frame[frame <= BLACK_PXL_THRESHOLD] = 0
+            # Normalize frame
+            frame *= 255.0/frame.max()
             if np.sum(frame) > BLACK_FRAME_THRESHOLD:
                 # Not black screen, check for lines
                 self.process(frame, cur_count)
@@ -220,3 +191,36 @@ class RageQuit(Detector):
         print 'Rage Quit Detected'
         self.reset()
         cv.waitKey()
+
+class Engine(object):
+    def __init__(self, src):
+        global race
+        self.name = src
+        self.capture = cv.VideoCapture(src)
+        race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
+        self.ret, self.cur_frame = self.capture.read()
+        self.avg_frames = np.float32(self.cur_frame)
+        self.frame_cnt = 1
+        self.detectors = []
+        # Debug
+        cv.namedWindow(src, 1)
+        self.toggle = 1
+        print '[Engine] initialization complete.'
+
+    def add_detector(self, detector):
+        self.detectors.extend(detector)
+
+    def process(self):
+        # Init
+        while self.cur_frame is not None:
+            print '----[ Frame ' + str(self.frame_cnt) + ']----'
+            cv.imshow(self.name, self.cur_frame)
+            ret, self.cur_frame = self.capture.read()
+            for d in self.detectors:
+                d.detect(self.cur_frame, self.frame_cnt)
+            self.frame_cnt += 1
+            c = cv.waitKey(self.toggle)
+            if c is 27:
+                return
+            elif c is 32:
+                self.toggle ^= 1
