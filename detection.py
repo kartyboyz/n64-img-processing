@@ -32,11 +32,11 @@ buffers = {
 
 # Parent class for all detectors
 class Detector(object):
-    def __init__(self, ROI_list, masks_path, freq, threshold_list):
+    def __init__(self, ROI_list, masks_path, freq, threshold):
         self.ROI_list = ROI_list
         self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
         self.freq = freq
-        self.threshold_list = threshold_list
+        self.threshold = threshold
         # Debug
         self.toggle = 0
 
@@ -67,7 +67,7 @@ class Detector(object):
                 # Determine distances
                 distance = cv.matchTemplate(tmp_frame, mask[0], cv.TM_SQDIFF_NORMED)
                 print mask[1], distance
-                if distance < 0.16:
+                if distance < self.threshold:
                     self.handle(frame, cur_count, player, mask)
                 # DEBUG
                 #cv.imwrite('cur_f.png', tmp_frame)
