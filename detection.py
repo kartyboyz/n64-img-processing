@@ -24,8 +24,7 @@ race =    {'num_players':   0,
            'session_id':    0,
            'start_time':    0,
            'race_duration': 0,
-           'frame_rate':    0
-          }
+           'frame_rate':    0}
 
 # Parent class for all detectors
 class Detector(object):
@@ -73,6 +72,7 @@ class Detector(object):
                 cv.imwrite('cur_m.png', mask[0])
             player += 1
 
+
 class EndRaceDetector(object):
     def __init__(self, session_id):
         self.session_id = session_id
@@ -119,49 +119,33 @@ class ItemDetector(Detector):
             # Update JSON!
             self.buffer.clear()
 
-class PlayerNumDetector(object):
-    def __init__(self):
-        # Flags
-        self.done = False
+class PlayerNum(object):
+    def detect(self, cur_frame, frame_cnt):
+        gray = cv.cvtColor(cur_frame, cv.COLOR_BGR2GRAY)
+        _, gray = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)
+        cv.imshow('hh', gray)
+        hor_projection = gray.sum(axis=0)
+        ver_projection = gray.sum(axis=1)
+        hor_projection *= 254.0/hor_projection.max()
+        ver_projection *= 254.0/ver_projection.max()
 
-    def detect(self, frame, cur_count):
-        if not self.done:
-            # Normalize frame
-            frame *= 255.0/frame.max()
-            if np.sum(frame) > BLACK_FRAME_THRESHOLD:
-                # Not black screen, check for lines
-                self.process(frame, cur_count)
+        hh = np.zeros((255, hor_projection.shape[0]))
+        vh = np.zeros((ver_projection.shape[0], 255))
+        for ii in xrange(hor_projection.shape[0]):
+            if hor_projection[ii] > 1:
+                if hor_projection[ii]:
+                    hh[0:hor_projection[ii], ii] = 1
+        for ii in xrange(ver_projection.shape[0]):
+            if ver_projection[ii] > 1:
+                if ver_projection[ii]:
+                    vh[ii,0:ver_projection[ii]] = 1
+        cv.imshow('v', vh)
+        cv.imshow('h', hh)
 
-    def process(self, frame, cur_count):
-        ''' Modes:
-                1 player:       No black lines intersecting video stream
-                2 players:      One long horizontal black line in video stream
-                3, 4 players:   Horizontal and vertical black lines in video stream
-        '''
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        (h, w) = gray.shape
-        # MK64-specific constants
-        LINE_PX_H = h/2
-        LINE_PX_W = w/2-3 # NOTE: -3 necessary because of asymmetry in frame
-        # Threhsold for true black
-        # Check ROI for black lines
-        v_test = h_test = False
-        black_count_w = np.sum(gray[:, LINE_PX_W] == 0)
-        black_count_h = np.sum(gray[LINE_PX_H, :] == 0)
-        if black_count_w >= h/2:
-            h_test = True
-        if black_count_h >= w/2:
-            v_test = True
-        if not v_test and h_test:
-            print '2P mode'
-        elif all((h_test, v_test)):
-            print '3P or 4P mode'
-        else:
-            print '1p mode'
 
 class StartRaceDetector(Detector):
     def handle(self, frame, cur_count, player, mask):
-            x=0
+            # Handle START OF RACE
             global isStarted
             global race
             # Set isStarted to True since race has started
@@ -170,6 +154,9 @@ class StartRaceDetector(Detector):
             race['start_time'] = floor(cur_count / race['frame_rate']) - 6
             print race['start_time']
             print '\t\tRace has started'
+
+            # Handle NUMBER OF PLAYERS
+            PlayerNumDetector().handle(frame, cur_count, player, mask)
             cv.waitKey()
 
     def detect(self, cur_frame, frame_cnt):
@@ -203,7 +190,7 @@ class Engine(object):
         self.capture = cv.VideoCapture(src)
         race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
         self.ret, self.cur_frame = self.capture.read()
-        self.avg_frames = np.float32(self.cur_frame)
+        self.prev_frame = self.cur_frame.copy()
         self.frame_cnt = 1
         self.detectors = []
         # Debug
@@ -215,14 +202,15 @@ class Engine(object):
         self.detectors.extend(detector)
 
     def process(self):
-        # Init
         while self.cur_frame is not None:
-            print '----[ Frame ' + str(self.frame_cnt) + ']----'
-            cv.imshow(self.name, self.cur_frame)
+            #print '----[ Frame ' + str(self.frame_cnt) + ']----'
             for d in self.detectors:
                 d.detect(self.cur_frame, self.frame_cnt)
+            self.prev_frame = self.cur_frame
             ret, self.cur_frame = self.capture.read()
+            cv.imshow(self.name, self.prev_frame-self.cur_frame)
             self.frame_cnt += 1
+            print self.cur_frame.shape
             c = cv.waitKey(self.toggle)
             if c is 27:
                 return
