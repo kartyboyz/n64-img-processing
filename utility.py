@@ -36,6 +36,64 @@ def pixelate(image, resolution):
     return rv, display
 
 
+def getNewROI(frame_shape, ROI):
+    '''
+    This function is extremely similar to scaleImage. The only difference is that
+    where scaleImage creates a new image based on frame size and mask ROI coordinates
+    in a 640x480 frame, this just returns the new ROI coordinated.
+    '''
+
+    h_frame = frame_shape[0]
+    w_frame = frame_shape[1]
+    x1_percentage = ROI[0][0] / 640.0 * 100
+    y1_percentage = ROI[0][1] / 480.0 * 100
+    x2_percentage = ROI[1][0] / 640.0 * 100.0
+    y2_percentage = ROI[1][1] / 480.0 * 100.0
+    
+    newx1 = int(np.ceil((x1_percentage * float(w_frame)) / 100.0))
+    newx2 = int(np.ceil((x2_percentage * float(w_frame)) / 100.0))
+    newy1 = int(np.ceil((y1_percentage * float(h_frame)) / 100.0))
+    newy2 = int(np.ceil((y2_percentage * float(h_frame)) / 100.0))
+    new_ROI = ((newx1, newy1), (newx2, newy2))
+
+    return new_ROI
+
+
+def scaleImage(frame, mask, ROI):
+    '''
+    Generates a new image mask with dimensions scaled to the size of the video frame.
+    This works by calculating the percent into the frame both (x1,y1) and (x2,y2) occur.
+    (x1,y1) is the top left corner of the mask and (x2,y2) is the bottom right corner of the mask.
+    Then compute the new x y pairs based on the calculated percentages and pass results onto cv.resize.
+    Resizing operation is done via bilinear interpolation.
+    '''
+
+    # Get the dimensions of the frame and the shape of the mask
+    h_frame, w_frame, _ = frame.shape
+    h_mask, w_mask, _ = mask.shape
+
+    x1_percentage = ROI[0][0] / 640.0 * 100
+    y1_percentage = ROI[0][1] / 480.0 * 100
+    x2_percentage = ROI[1][0] / 640.0 * 100.0
+    y2_percentage = ROI[1][1] / 480.0 * 100.0
+    
+    newx1 = int(np.ceil((x1_percentage * float(w_frame)) / 100.0))
+    newx2 = int(np.ceil((x2_percentage * float(w_frame)) / 100.0))
+    newy1 = int(np.ceil((y1_percentage * float(h_frame)) / 100.0))
+    newy2 = int(np.ceil((y2_percentage * float(h_frame)) / 100.0))
+
+    w_scaled = newx2 - newx1
+    h_scaled = newy2 - newy1
+
+    # Resize the image
+    fx = float(w_scaled) / float(w_mask)
+    fy = float(h_scaled) / float(h_mask)
+    scaled_image = cv.resize(mask, (w_scaled,h_scaled), fx, fy, cv.INTER_LINEAR)
+    return scaled_image
+
+
+
+
 class RingBuffer(deque):
     def __init__(self, max_size):
         deque.__init__(self)

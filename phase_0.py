@@ -7,18 +7,19 @@ def main(session_id, video_file):
     r = detection.Engine(video_file.name)
     start_race = detection.StartRaceDetector(ROI_list=[
                                             ((167, 52), (182, 102))],
-                                            masks_path='./pxls/pxl_start/',
+                                            #((334,78), (364, 153))],
+                                            masks_path='./high_res_masks/start_masks/',
                                             freq=1,
                                             threshold=0.06)
     race_end = detection.EndRaceDetector(session_id)
     items = detection.ItemDetector(ROI_list=[
-                                            ((45, 34), (97, 74))],
-                                            masks_path='./pxls/pxl_items/',
+                                            ((39, 30), (102, 76))],
+                                            masks_path='./high_res_masks/item_masks/',
                                             freq=1,
                                             threshold=0.16,
                                             buf_len=8)
     # Prepare engine
-    r.add_detector([start_race, race_end, items])
+    r.add_detector([items])
     # Process
     r.process()
 

@@ -6,8 +6,8 @@ import os
 import sys
 
 import numpy as np
-import cv as cv1
 import cv2 as cv
+import cv2.cv as cv1
 
 import utility
 
@@ -33,6 +33,9 @@ class Detector(object):
         self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
         self.freq = freq
         self.threshold = threshold
+
+        # Set self.scaled to True if masks have already been scaled or if scaling is not necessary.
+        self.scaled = False
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
         # Debug
@@ -40,6 +43,26 @@ class Detector(object):
 
     def detect(self, frame, cur_count):
         if cur_count % self.freq is 0:
+            # If mask has not been scaled and/or pixelated yet, do it.
+            if self.scaled == False:
+                # If video is larger or smaller than 640x480, scale all masks accordingly and pixelate
+                # Note that this operation should only happen once per detector
+                if frame.shape != (480, 640, 3):
+                    for ii in range(len(self.masks)):
+                        scaled_mask = utility.scaleImage(frame, self.masks[ii][0], self.ROI_list[0])
+                        pxl_mask, disp_mask = utility.pixelate(scaled_mask, resolution=8)
+                        self.masks[ii] = (pxl_mask, 'scaled_'+self.masks[ii][1])
+                        self.scaled = True
+                    # Now get the new ROI coordinates
+                    for ii in range(len(self.ROI_list)):
+                        new_ROI = utility.getNewROI(frame.shape, self.ROI_list[ii])
+                        print str(new_ROI)
+                        self.ROI_list[ii] = new_ROI
+                else:
+                    for ii in range(len(self.masks)):
+                        pxl_mask, disp_mask = utility.pixelate(self.masks[ii][0], resolution=8)
+                        self.masks[ii] = (pxl_mask, self.masks[ii][1], )
+                        self.scaled = True
             self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
@@ -208,9 +231,9 @@ class Engine(object):
                 d.detect(self.cur_frame, self.frame_cnt)
             self.prev_frame = self.cur_frame
             ret, self.cur_frame = self.capture.read()
-            cv.imshow(self.name, self.prev_frame-self.cur_frame)
+            #cv.imshow(self.name, self.prev_frame-self.cur_frame)
+            cv.imshow(self.name, self.cur_frame)
             self.frame_cnt += 1
-            print self.cur_frame.shape
             c = cv.waitKey(self.toggle)
             if c is 27:
                 return
