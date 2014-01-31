@@ -36,30 +36,7 @@ def pixelate(image, resolution):
     return rv, display
 
 
-def getNewROI(frame_shape, ROI):
-    '''
-    This function is extremely similar to scaleImage. The only difference is that
-    where scaleImage creates a new image based on frame size and mask ROI coordinates
-    in a 640x480 frame, this just returns the new ROI coordinated.
-    '''
-
-    h_frame = frame_shape[0]
-    w_frame = frame_shape[1]
-    x1_percentage = ROI[0][0] / 640.0 * 100
-    y1_percentage = ROI[0][1] / 480.0 * 100
-    x2_percentage = ROI[1][0] / 640.0 * 100.0
-    y2_percentage = ROI[1][1] / 480.0 * 100.0
-    
-    newx1 = int(np.ceil((x1_percentage * float(w_frame)) / 100.0))
-    newx2 = int(np.ceil((x2_percentage * float(w_frame)) / 100.0))
-    newy1 = int(np.ceil((y1_percentage * float(h_frame)) / 100.0))
-    newy2 = int(np.ceil((y2_percentage * float(h_frame)) / 100.0))
-    new_ROI = ((newx1, newy1), (newx2, newy2))
-
-    return new_ROI
-
-
-def scaleImage(frame, mask, ROI):
+def scaleImage(frame, mask):
     '''
     Generates a new image mask with dimensions scaled to the size of the video frame.
     This works by calculating the percent into the frame both (x1,y1) and (x2,y2) occur.
@@ -71,24 +48,22 @@ def scaleImage(frame, mask, ROI):
     # Get the dimensions of the frame and the shape of the mask
     h_frame, w_frame, _ = frame.shape
     h_mask, w_mask, _ = mask.shape
+    coords = ((0,0),(w_mask,h_mask))
 
-    x1_percentage = ROI[0][0] / 640.0 * 100
-    y1_percentage = ROI[0][1] / 480.0 * 100
-    x2_percentage = ROI[1][0] / 640.0 * 100.0
-    y2_percentage = ROI[1][1] / 480.0 * 100.0
+    x1_percentage = 0.0
+    y1_percentage = 0.0
+    x2_percentage = coords[1][0] / 312.0 * 100.0
+    y2_percentage = coords[1][1] / 235.0 * 100.0
     
-    newx1 = int(np.ceil((x1_percentage * float(w_frame)) / 100.0))
-    newx2 = int(np.ceil((x2_percentage * float(w_frame)) / 100.0))
+    newx1 = 0
+    newx2 = 0
     newy1 = int(np.ceil((y1_percentage * float(h_frame)) / 100.0))
     newy2 = int(np.ceil((y2_percentage * float(h_frame)) / 100.0))
 
-    w_scaled = newx2 - newx1
-    h_scaled = newy2 - newy1
-
     # Resize the image
-    fx = float(w_scaled) / float(w_mask)
-    fy = float(h_scaled) / float(h_mask)
-    scaled_image = cv.resize(mask, (w_scaled,h_scaled), fx, fy, cv.INTER_LINEAR)
+    fx = float(newx2) / float(w_mask)
+    fy = float(newy2) / float(h_mask)
+    scaled_image = cv.resize(mask, (newx2,newy2), fx, fy, cv.INTER_LINEAR)
     return scaled_image
 
 
