@@ -30,6 +30,13 @@ def get_races(session_id):
     print response.text
     return response
 
+def get_playeROI(session_id):
+    '''
+    Communicates with DB to extract player boxes from the session;
+    '''
+    global server, port
+    # TODO: Figure out payload, parsing, return value
+
 def put_race(session_id, start_time, duration):
     '''
     Sends race JSON object to database for storage.

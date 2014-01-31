@@ -126,14 +126,48 @@ class ItemDetector(Detector):
 
 class PlayerNum(object):
     def detect(self, cur_frame, frame_cnt):
+        OFFSET = 10
+        # Force black frame to ensure first coord is top left
+        cur_frame = cv.copyMakeBorder(cur_frame, OFFSET, OFFSET, OFFSET, OFFSET, cv.BORDER_CONSTANT, TRUE_BLACK)
+        # Treshold + grayscale for binary image
         gray = cv.cvtColor(cur_frame, cv.COLOR_BGR2GRAY)
         _, gray = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)
-        cv.imshow('hh', gray)
+        # Sum up rows/columns for 'black' projections
         hor_projection = gray.sum(axis=0)
         ver_projection = gray.sum(axis=1)
-        hor_projection *= 254.0/hor_projection.max()
-        ver_projection *= 254.0/ver_projection.max()
+        # Normalize to [1-255]
+        hor_projection *= 255/(hor_projection.max()+1)
+        ver_projection *= 255/(ver_projection.max()+1)
+        # Extract black line projection indices
+        hor_lines = np.where(hor_projection == 0)[0]
+        ver_lines = np.where(ver_projection == 0)[0]
+        # Partition to extract coordinates
+        hor_clumps = np.split(hor_lines, np.where(np.diff(hor_lines) != 1)[0]+1)
+        ver_clumps = np.split(ver_lines, np.where(np.diff(ver_lines) != 1)[0]+1)
+        # Extract first and last points in sequential range
+        hor_coords = [(hor_clumps[i][-1], hor_clumps[i+1][0]) for i in xrange(len(hor_clumps)-1)]
+        ver_coords = [(ver_clumps[i][-1], ver_clumps[i+1][0]) for i in xrange(len(ver_clumps)-1)]
 
+        # Filter out noisy data
+        hor_coords = [hor_coords[i] for i in np.where(np.diff(hor_coords) > 50)[0]]
+        ver_coords = [ver_coords[i] for i in np.where(np.diff(ver_coords) > 50)[0]]
+        hor_len = len(hor_coords)
+        ver_len = len(ver_coords)
+
+        #DEBUG
+        i = 0
+        if (hor_len <= 2 and hor_len > 0 and
+            ver_len <= 2 and ver_len > 0):
+            # Create all permutations for player regions
+            ranges = []
+            for perm in itertools.product(hor_coords, ver_coords):
+                ranges.append((perm[0], perm[1]))
+            for (row, col) in ranges:
+                # DEBUG
+                cv.imshow(str(i), cur_frame[col[0]:col[1], row[0]:row[1]])
+                i +=1
+
+        # DEBUG
         hh = np.zeros((255, hor_projection.shape[0]))
         vh = np.zeros((ver_projection.shape[0], 255))
         for ii in xrange(hor_projection.shape[0]):
@@ -195,7 +229,10 @@ class Engine(object):
         self.capture = cv.VideoCapture(src)
         race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
         self.ret, self.cur_frame = self.capture.read()
-        self.prev_frame = self.cur_frame.copy()
+
+        gray = cv.cvtColor(self.cur_frame, cv.COLOR_BGR2GRAY)
+
+        self.prev_frame = gray.copy()
         self.frame_cnt = 1
         self.detectors = []
         # Debug
@@ -210,7 +247,6 @@ class Engine(object):
         while self.cur_frame is not None:
             for d in self.detectors:
                 d.detect(self.cur_frame, self.frame_cnt)
-            self.prev_frame = self.cur_frame
             ret, self.cur_frame = self.capture.read()
             cv.imshow(self.name, self.cur_frame)
             self.frame_cnt += 1

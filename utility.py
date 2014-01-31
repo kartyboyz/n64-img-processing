@@ -2,12 +2,6 @@ from collections import deque
 import numpy as np
 import cv2 as cv
 
-def enum(*sequetial, **named):
-    enums = dict(zip
-                    (sequential,
-                     range(length(sequential))),
-                    **named)
-    return type('Enum', (), enums)
 
 # Global function to average and downsize an image
 def pixelate(image, resolution):
@@ -34,7 +28,6 @@ def pixelate(image, resolution):
             # Debug
             cv.rectangle(display, (block*c, block*r), (block*c+block, block*r+block), [avg_b, avg_g, avg_r], -1)
     return rv, display
-
 
 def scaleImage(frame, mask):
     '''
@@ -65,9 +58,6 @@ def scaleImage(frame, mask):
     fy = float(newy2) / float(h_mask)
     scaled_image = cv.resize(mask, (newx2,newy2), fx, fy, cv.INTER_LINEAR)
     return scaled_image
-
-
-
 
 class RingBuffer(deque):
     def __init__(self, max_size):
