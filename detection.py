@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import collections
 import database
-from math import floor, ceil
 import os
 import sys
 
@@ -28,12 +27,10 @@ race =    {'num_players':   0,
 
 # Parent class for all detectors
 class Detector(object):
-    def __init__(self, ROI_list, masks_path, freq, threshold, buf_len=None):
-        self.ROI_list = ROI_list
+    def __init__(self, masks_path, freq, threshold, buf_len=None):
         self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
         self.freq = freq
         self.threshold = threshold
-
         # Set self.scaled to True if masks have already been scaled or if scaling is not necessary.
         self.scaled = False
         if buf_len:
@@ -49,51 +46,36 @@ class Detector(object):
                 # Note that this operation should only happen once per detector
                 if frame.shape != (480, 640, 3):
                     for ii in range(len(self.masks)):
-                        scaled_mask = utility.scaleImage(frame, self.masks[ii][0], self.ROI_list[0])
-                        pxl_mask, disp_mask = utility.pixelate(scaled_mask, resolution=8)
-                        self.masks[ii] = (pxl_mask, 'scaled_'+self.masks[ii][1])
-                        self.scaled = True
-                    # Now get the new ROI coordinates
-                    for ii in range(len(self.ROI_list)):
-                        new_ROI = utility.getNewROI(frame.shape, self.ROI_list[ii])
-                        print str(new_ROI)
-                        self.ROI_list[ii] = new_ROI
-                else:
-                    for ii in range(len(self.masks)):
-                        pxl_mask, disp_mask = utility.pixelate(self.masks[ii][0], resolution=8)
-                        self.masks[ii] = (pxl_mask, self.masks[ii][1], )
-                        self.scaled = True
+                        scaled_mask = utility.scaleImage(frame, self.masks[ii][0])
+                        self.masks[ii] = (scaled_mask, 'scaled_'+self.masks[ii][1])
+                self.scaled = True
             self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
         # Player counter
         player = 1
-        for ROI in self.ROI_list:
-            # Extract ROI points
-            col0 = ROI[0][0]
-            col1 = ROI[1][0]
-            row0 = ROI[0][1]
-            row1 = ROI[1][1]
-            # Pixelate current ROI in frame
-            region = frame[row0:row1, col0:col1]
-            f_pxl, f_disp = utility.pixelate(region, resolution=8)
-            for mask in self.masks:
-                # Ignore black pixels in mask
-                tmp_frame = f_pxl.copy()
-                tmp_frame[(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
-                mask[0][(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
-                # Debug
-                cv.imshow('FRAME', f_disp)
-                # Determine distances
-                # Determine distances
-                distance = cv.matchTemplate(tmp_frame, mask[0], cv.TM_SQDIFF_NORMED)
-                print mask[1], distance
-                if distance < self.threshold:
-                    self.handle(frame, cur_count, player, mask)
-                # DEBUG
-                cv.imwrite('cur_f.png', tmp_frame)
-                cv.imwrite('cur_m.png', mask[0])
-            player += 1
+        region = frame[0:235, 3:315]
+        for mask in self.masks:
+            # Threshold the frame w.r.t the mask
+            #tmp_frame = f_pxl.copy()
+            tmp_frame = region.copy()
+            tmp_frame[(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
+            # We must now threshold the mask w.r.t. itself
+            mask[0][(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
+            # Debug
+            cv.imshow('FRAME', tmp_frame)
+            # Determine distances
+            # Determine distances
+            distance_map = cv.matchTemplate(tmp_frame, mask[0], cv.TM_SQDIFF_NORMED)
+            threshold_areas = np.where(distance_map < self.threshold)
+            for ii in range(len(threshold_areas[0])):
+                print mask[1], distance_map[threshold_areas[0][ii]][threshold_areas[1][ii]]
+            if threshold_areas[0].size != 0:
+                self.handle(frame, cur_count, player, mask)
+            # DEBUG
+            cv.imwrite('cur_f.png', tmp_frame)
+            cv.imwrite('cur_m.png', mask[0])
+        player += 1
 
 
 class EndRaceDetector(object):
@@ -126,7 +108,7 @@ class EndRaceDetector(object):
         # Set isStarted back to False in order to process another race
         isStarted = False
         # Put the race duration in the dictionary
-        race['race_duration'] = ceil((cur_count / race['frame_rate']) - race['start_time']) + 7
+        race['race_duration'] = np.ceil((cur_count / race['frame_rate']) - race['start_time']) + 7
         print race['race_duration']
         database.put_race(self.session_id, race['start_time'], race['race_duration'])
         print 'End of race detected'
@@ -174,7 +156,7 @@ class StartRaceDetector(Detector):
             # Set isStarted to True since race has started
             isStarted = True
             # Put the start time of the race into the dictionary
-            race['start_time'] = floor(cur_count / race['frame_rate']) - 6
+            race['start_time'] = np.floor(cur_count / race['frame_rate']) - 6
             print race['start_time']
             print '\t\tRace has started'
 
@@ -226,12 +208,10 @@ class Engine(object):
 
     def process(self):
         while self.cur_frame is not None:
-            #print '----[ Frame ' + str(self.frame_cnt) + ']----'
             for d in self.detectors:
                 d.detect(self.cur_frame, self.frame_cnt)
             self.prev_frame = self.cur_frame
             ret, self.cur_frame = self.capture.read()
-            #cv.imshow(self.name, self.prev_frame-self.cur_frame)
             cv.imshow(self.name, self.cur_frame)
             self.frame_cnt += 1
             c = cv.waitKey(self.toggle)
