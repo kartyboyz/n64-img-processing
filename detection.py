@@ -13,12 +13,13 @@ import config
 
 # Parent class for all detectors
 class Detector(object):
-    def __init__(self, masks_path, freq, threshold, buf_len=None):
+    def __init__(self, masks_path, freq, threshold, race_vars, buf_len=None):
         self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
         self.freq = freq
         self.threshold = threshold
         # Set self.scaled to True if masks have already been scaled or if scaling is not necessary.
         self.scaled = False
+        self.race_vars = race_vars
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
         # Debug
@@ -45,9 +46,9 @@ class Detector(object):
             # Threshold the frame w.r.t the mask
             #tmp_frame = f_pxl.copy()
             tmp_frame = region.copy()
-            tmp_frame[(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
+            #tmp_frame[(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
             # We must now threshold the mask w.r.t. itself
-            mask[0][(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
+            #mask[0][(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
             # Debug
             cv.imshow('FRAME', tmp_frame)
             # Determine distances
@@ -65,12 +66,13 @@ class Detector(object):
 
 
 class EndRaceDetector(object):
-    def __init__(self, session_id):
+    def __init__(self, race_vars, session_id):
         self.session_id = session_id
+        self.race_vars = race_vars
 
     def detect(self, frame, cur_count):
         # If race hasn't started, still on map selection, or player selection pages, do not process
-        if isStarted:
+        if self.race_vars.isStarted:
             self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
@@ -89,14 +91,12 @@ class EndRaceDetector(object):
 
     def handle(self, frame, cur_count):
         x = 0
-        global isStarted
-        global race
         # Set isStarted back to False in order to process another race
-        isStarted = False
+        self.race_vars.isStarted = False
         # Put the race duration in the dictionary
-        race['race_duration'] = np.ceil((cur_count / race['frame_rate']) - race['start_time']) + 7
-        print race['race_duration']
-        database.put_race(self.session_id, race['start_time'], race['race_duration'])
+        self.race_vars.race['race_duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time']) + 7
+        print self.race_vars.race['race_duration']
+        database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars_race['race_duration'])
         print 'End of race detected'
         cv.waitKey()
 
@@ -111,6 +111,9 @@ class ItemDetector(Detector):
             self.buffer.clear()
 
 class PlayerNum(object):
+    def __init__(self, race_vars):
+        self.race_vars = race_vars
+
     def detect(self, cur_frame, frame_cnt):
         OFFSET = 10
         # Force black frame to ensure first coord is top left
@@ -170,14 +173,11 @@ class PlayerNum(object):
 
 class StartRaceDetector(Detector):
     def handle(self, frame, cur_count, player, mask):
-            # Handle START OF RACE
-            global isStarted
-            global race
             # Set isStarted to True since race has started
-            isStarted = True
+            self.race_vars.isStarted = True
             # Put the start time of the race into the dictionary
-            race['start_time'] = np.floor(cur_count / race['frame_rate']) - 6
-            print race['start_time']
+            self.race_vars.race['start_time'] = np.floor(cur_count / self.race_vars.race['frame_rate']) - 6
+            print self.race_vars.race['start_time']
             print '\t\tRace has started'
 
             # Handle NUMBER OF PLAYERS
@@ -186,22 +186,20 @@ class StartRaceDetector(Detector):
 
     def detect(self, cur_frame, frame_cnt):
         # If race hasn't started, initiate detection.
-        if not isStarted:
+        if not self.race_vars.isStarted:
             super(StartRaceDetector, self).detect(cur_frame, frame_cnt)
 
 class RageQuit(Detector):
     def detect(self, cur_frame, frame_cnt):
-        if isStarted:
+        if self.race_vars.isStarted:
             super(RageQuit, self).detect(cur_frame, frame_cnt)
 
     def reset(self):
-        global isStarted
-        global race
         # Reset state variables so that the next race can be processed
-        isStarted = False
-        race['start_time'] = 0
-        race['race_duration'] = 0
-        race['num_players'] = 0
+        self.race_vars.isStarted = False
+        self.race_vars.race['start_time'] = 0
+        self.race_vars.race['race_duration'] = 0
+        self.race_vars.race['num_players'] = 0
 
     def handle(self, frame, cur_count, player, mask):
         print 'Rage Quit Detected'
@@ -209,11 +207,11 @@ class RageQuit(Detector):
         cv.waitKey()
 
 class Engine(object):
-    def __init__(self, src):
-        global race
+    def __init__(self, src, race_vars):
         self.name = src
         self.capture = cv.VideoCapture(src)
-        race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
+        self.race_vars = race_vars
+        self.race_vars.race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
         self.ret, self.cur_frame = self.capture.read()
 
         gray = cv.cvtColor(self.cur_frame, cv.COLOR_BGR2GRAY)
