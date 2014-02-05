@@ -9,21 +9,7 @@ import cv2 as cv
 import cv2.cv as cv1
 
 import utility
-
-# Global flags
-isStarted = False
-
-# Constants
-BLACK_FRAME_THRESHOLD = 6500000
-BLACK_PXL_THRESHOLD = (50,50,50)
-TRUE_BLACK = (0,0,0)
-
-# JSON Container for race information
-race =    {'num_players':   0,
-           'session_id':    0,
-           'start_time':    0,
-           'race_duration': 0,
-           'frame_rate':    0}
+import config
 
 # Parent class for all detectors
 class Detector(object):
@@ -59,9 +45,9 @@ class Detector(object):
             # Threshold the frame w.r.t the mask
             #tmp_frame = f_pxl.copy()
             tmp_frame = region.copy()
-            tmp_frame[(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
+            tmp_frame[(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
             # We must now threshold the mask w.r.t. itself
-            mask[0][(mask[0] <= BLACK_PXL_THRESHOLD).all(axis = -1)] = TRUE_BLACK
+            mask[0][(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
             # Debug
             cv.imshow('FRAME', tmp_frame)
             # Determine distances
@@ -128,7 +114,7 @@ class PlayerNum(object):
     def detect(self, cur_frame, frame_cnt):
         OFFSET = 10
         # Force black frame to ensure first coord is top left
-        cur_frame = cv.copyMakeBorder(cur_frame, OFFSET, OFFSET, OFFSET, OFFSET, cv.BORDER_CONSTANT, TRUE_BLACK)
+        cur_frame = cv.copyMakeBorder(cur_frame, OFFSET, OFFSET, OFFSET, OFFSET, cv.BORDER_CONSTANT, (0, 0, 0))
         # Treshold + grayscale for binary image
         gray = cv.cvtColor(cur_frame, cv.COLOR_BGR2GRAY)
         _, gray = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)
