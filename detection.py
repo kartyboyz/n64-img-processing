@@ -19,7 +19,6 @@ class Detector(object):
         self.freq = freq
         self.threshold = threshold
         # Set self.scaled to True if masks have already been scaled or if scaling is not necessary.
-        self.scaled = False
         self.race_vars = race_vars
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
@@ -29,38 +28,34 @@ class Detector(object):
     def detect(self, frame, cur_count):
         if cur_count % self.freq is 0:
             # Note that this operation should only happen once per detector
-            ii = 0
+            #print self.race_vars.player_boxes
             for player_box in self.race_vars.player_boxes:
                 tmp_frame = frame[player_box[0][0]:player_box[1][0], player_box[0][1]:player_box[1][1]]
-                cv.imshow('player' + str(ii), tmp_frame)
-                ii ^= 1
-                # If mask has not been scaled yet, do it.
-                if self.scaled == False:
-                    # If player region (tmp_frame) is not 315x235, scale all masks accordingly
-                    if tmp_frame.shape != (315, 235, 3):
-                        for ii in range(len(self.masks)):
-                            scaled_mask = utility.scaleImage(tmp_frame, self.masks[ii][0])
-                            self.masks[ii] = (scaled_mask, 'scaled_'+self.masks[ii][1])
-                    self.scaled = True
                 self.process(tmp_frame, cur_count)
 
     def process(self, frame, cur_count):
         # Player counter
         player = 1
         for mask in self.masks:
+            # If player region (tmp_frame) is not 315x235, scale all masks accordingly
+            if frame.shape != (314, 237, 3):
+                scaled_mask = (utility.scaleImage(frame, mask[0]), mask[1])
+            else:
+                scaled_mask = (mask[0], mask[1])
+            cv.imshow('mask', scaled_mask[0])
             # Determine distances
-            distance_map = cv.matchTemplate(frame, mask[0], cv.TM_SQDIFF_NORMED)
+            distance_map = cv.matchTemplate(frame, scaled_mask[0], cv.TM_SQDIFF_NORMED)
             threshold_areas = np.where(distance_map < self.threshold)
             #print threshold_areas
             for ii in range(len(threshold_areas[0])):
-                print mask[1], distance_map[threshold_areas[0][ii]][threshold_areas[1][ii]]
+                print scaled_mask[1], distance_map[threshold_areas[0][ii]][threshold_areas[1][ii]]
             if threshold_areas[0].size != 0:
                 self.handle(frame, cur_count, player, mask)
         player += 1
 
 
 class EndRaceDetector(object):
-    def __init__(self, race_vars, session_id):
+    def __init__(self, session_id, race_vars):
         self.session_id = session_id
         self.race_vars = race_vars
 
@@ -90,7 +85,7 @@ class EndRaceDetector(object):
         # Put the race duration in the dictionary
         self.race_vars.race['race_duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time']) + 7
         print self.race_vars.race['race_duration']
-        database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars_race['race_duration'])
+        database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars.race['race_duration'])
         print 'End of race detected'
         cv.waitKey()
 
@@ -133,8 +128,8 @@ class BoxExtractor(object):
         hor_coords = [(hor_clumps[i][-1], hor_clumps[i+1][0]) for i in xrange(len(hor_clumps)-1)]
         ver_coords = [(ver_clumps[i][-1], ver_clumps[i+1][0]) for i in xrange(len(ver_clumps)-1)]
         # Filter out noisy data
-        hor_coords = [hor_coords[i] for i in np.where(np.diff(hor_coords) > 50)[0]]
-        ver_coords = [ver_coords[i] for i in np.where(np.diff(ver_coords) > 50)[0]]
+        hor_coords = [hor_coords[i] for i in np.where(np.diff(hor_coords) > 100)[0]]
+        ver_coords = [ver_coords[i] for i in np.where(np.diff(ver_coords) > 100)[0]]
         hor_len = len(hor_coords)
         ver_len = len(ver_coords)
 
@@ -150,22 +145,22 @@ class BoxExtractor(object):
                 # Update global configuration settings
                 self.race_vars.player_boxes.append([(col[0], row[0]), (col[1], row[1])])
                 # DEBUG
-                cv.imshow(str(i), cur_frame[col[0]:col[1], row[0]:row[1]])
+                cv.imshow('region ' + str(i), cur_frame[col[0]:col[1], row[0]:row[1]])
                 i +=1
 
         # DEBUG
-        hh = np.zeros((255, hor_projection.shape[0]))
-        vh = np.zeros((ver_projection.shape[0], 255))
-        for ii in xrange(hor_projection.shape[0]):
-            if hor_projection[ii] > 1:
-                if hor_projection[ii]:
-                    hh[0:hor_projection[ii], ii] = 1
-        for ii in xrange(ver_projection.shape[0]):
-            if ver_projection[ii] > 1:
-                if ver_projection[ii]:
-                    vh[ii,0:ver_projection[ii]] = 1
-        cv.imshow('v', vh)
-        cv.imshow('h', hh)
+        #hh = np.zeros((255, hor_projection.shape[0]))
+        #vh = np.zeros((ver_projection.shape[0], 255))
+        #for ii in xrange(hor_projection.shape[0]):
+        #    if hor_projection[ii] > 1:
+        #        if hor_projection[ii]:
+        #            hh[0:hor_projection[ii], ii] = 1
+        #for ii in xrange(ver_projection.shape[0]):
+        #    if ver_projection[ii] > 1:
+        #        if ver_projection[ii]:
+        #            vh[ii,0:ver_projection[ii]] = 1
+        #cv.imshow('v', vh)
+        #cv.imshow('h', hh)
 
 
 class StartRaceDetector(Detector):

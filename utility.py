@@ -45,12 +45,12 @@ def scaleImage(frame, mask):
 
     x1_percentage = 0.0
     y1_percentage = 0.0
-    x2_percentage = coords[1][0] / 312.0 * 100.0
-    y2_percentage = coords[1][1] / 235.0 * 100.0
+    x2_percentage = coords[1][0] / 314.0 * 100.0
+    y2_percentage = coords[1][1] / 237.0 * 100.0
     
     newx1 = 0
-    newx2 = 0
-    newy1 = int(np.ceil((y1_percentage * float(h_frame)) / 100.0))
+    newy1 = 0
+    newx2 = int(np.ceil((x2_percentage * float(w_frame)) / 100.0))
     newy2 = int(np.ceil((y2_percentage * float(h_frame)) / 100.0))
 
     # Resize the image
