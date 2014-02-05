@@ -1,5 +1,3 @@
-import json
-
 class Race(object):
     def __init__(self):
         self.race = {'num_players':   0,
@@ -8,3 +6,4 @@ class Race(object):
             'race_duration': 0,
             'frame_rate':    0}
         self.isStarted = False
+        self.player_boxes = list();

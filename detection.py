@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import collections
 import database
+import itertools
 import os
 import sys
 
@@ -51,7 +52,6 @@ class Detector(object):
             #mask[0][(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
             # Debug
             cv.imshow('FRAME', tmp_frame)
-            # Determine distances
             # Determine distances
             distance_map = cv.matchTemplate(tmp_frame, mask[0], cv.TM_SQDIFF_NORMED)
             threshold_areas = np.where(distance_map < self.threshold)
@@ -110,16 +110,16 @@ class ItemDetector(Detector):
             # Update JSON!
             self.buffer.clear()
 
-class PlayerNum(object):
+class BoxExtractor(object):
     def __init__(self, race_vars):
         self.race_vars = race_vars
 
     def detect(self, cur_frame, frame_cnt):
         OFFSET = 10
         # Force black frame to ensure first coord is top left
-        cur_frame = cv.copyMakeBorder(cur_frame, OFFSET, OFFSET, OFFSET, OFFSET, cv.BORDER_CONSTANT, (0, 0, 0))
+        border_frame = cv.copyMakeBorder(cur_frame, OFFSET, OFFSET, OFFSET, OFFSET, cv.BORDER_CONSTANT, (0, 0, 0))
         # Treshold + grayscale for binary image
-        gray = cv.cvtColor(cur_frame, cv.COLOR_BGR2GRAY)
+        gray = cv.cvtColor(border_frame, cv.COLOR_BGR2GRAY)
         _, gray = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)
         # Sum up rows/columns for 'black' projections
         hor_projection = gray.sum(axis=0)
@@ -130,21 +130,22 @@ class PlayerNum(object):
         # Extract black line projection indices
         hor_lines = np.where(hor_projection == 0)[0]
         ver_lines = np.where(ver_projection == 0)[0]
+        hor_lines = hor_lines-OFFSET+1
+        ver_lines = ver_lines-OFFSET+1
         # Partition to extract coordinates
         hor_clumps = np.split(hor_lines, np.where(np.diff(hor_lines) != 1)[0]+1)
         ver_clumps = np.split(ver_lines, np.where(np.diff(ver_lines) != 1)[0]+1)
         # Extract first and last points in sequential range
         hor_coords = [(hor_clumps[i][-1], hor_clumps[i+1][0]) for i in xrange(len(hor_clumps)-1)]
         ver_coords = [(ver_clumps[i][-1], ver_clumps[i+1][0]) for i in xrange(len(ver_clumps)-1)]
-
         # Filter out noisy data
         hor_coords = [hor_coords[i] for i in np.where(np.diff(hor_coords) > 50)[0]]
         ver_coords = [ver_coords[i] for i in np.where(np.diff(ver_coords) > 50)[0]]
         hor_len = len(hor_coords)
         ver_len = len(ver_coords)
 
-        #DEBUG
-        i = 0
+        i = 0 # DEBUG
+        self.race_vars.player_boxes[:] = []
         if (hor_len <= 2 and hor_len > 0 and
             ver_len <= 2 and ver_len > 0):
             # Create all permutations for player regions
@@ -152,6 +153,8 @@ class PlayerNum(object):
             for perm in itertools.product(hor_coords, ver_coords):
                 ranges.append((perm[0], perm[1]))
             for (row, col) in ranges:
+                # Update global configuration settings
+                self.race_vars.player_boxes.append([(col[0], row[0]), (col[1], row[1])])
                 # DEBUG
                 cv.imshow(str(i), cur_frame[col[0]:col[1], row[0]:row[1]])
                 i +=1
