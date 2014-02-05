@@ -28,40 +28,34 @@ class Detector(object):
 
     def detect(self, frame, cur_count):
         if cur_count % self.freq is 0:
-            # If mask has not been scaled and/or pixelated yet, do it.
-            if self.scaled == False:
-                # If video is larger or smaller than 640x480, scale all masks accordingly and pixelate
-                # Note that this operation should only happen once per detector
-                if frame.shape != (480, 640, 3):
-                    for ii in range(len(self.masks)):
-                        scaled_mask = utility.scaleImage(frame, self.masks[ii][0])
-                        self.masks[ii] = (scaled_mask, 'scaled_'+self.masks[ii][1])
-                self.scaled = True
-            self.process(frame, cur_count)
+            # Note that this operation should only happen once per detector
+            ii = 0
+            for player_box in self.race_vars.player_boxes:
+                tmp_frame = frame[player_box[0][0]:player_box[1][0], player_box[0][1]:player_box[1][1]]
+                cv.imshow('player' + str(ii), tmp_frame)
+                ii ^= 1
+                # If mask has not been scaled yet, do it.
+                if self.scaled == False:
+                    # If player region (tmp_frame) is not 315x235, scale all masks accordingly
+                    if tmp_frame.shape != (315, 235, 3):
+                        for ii in range(len(self.masks)):
+                            scaled_mask = utility.scaleImage(tmp_frame, self.masks[ii][0])
+                            self.masks[ii] = (scaled_mask, 'scaled_'+self.masks[ii][1])
+                    self.scaled = True
+                self.process(tmp_frame, cur_count)
 
     def process(self, frame, cur_count):
         # Player counter
         player = 1
-        region = frame[0:235, 3:315]
         for mask in self.masks:
-            # Threshold the frame w.r.t the mask
-            #tmp_frame = f_pxl.copy()
-            tmp_frame = region.copy()
-            #tmp_frame[(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
-            # We must now threshold the mask w.r.t. itself
-            #mask[0][(mask[0] <= (50, 50, 50)).all(axis = -1)] = (0, 0, 0)
-            # Debug
-            cv.imshow('FRAME', tmp_frame)
             # Determine distances
-            distance_map = cv.matchTemplate(tmp_frame, mask[0], cv.TM_SQDIFF_NORMED)
+            distance_map = cv.matchTemplate(frame, mask[0], cv.TM_SQDIFF_NORMED)
             threshold_areas = np.where(distance_map < self.threshold)
+            #print threshold_areas
             for ii in range(len(threshold_areas[0])):
                 print mask[1], distance_map[threshold_areas[0][ii]][threshold_areas[1][ii]]
             if threshold_areas[0].size != 0:
                 self.handle(frame, cur_count, player, mask)
-            # DEBUG
-            cv.imwrite('cur_f.png', tmp_frame)
-            cv.imwrite('cur_m.png', mask[0])
         player += 1
 
 
@@ -175,16 +169,18 @@ class BoxExtractor(object):
 
 
 class StartRaceDetector(Detector):
+    def __init__(self, masks_path, freq, threshold, race_vars, buf_len=None):
+        self.numStarts = 0
+        super(StartRaceDetector, self).__init__(masks_path, freq, threshold, race_vars, buf_len=None)
+
     def handle(self, frame, cur_count, player, mask):
             # Set isStarted to True since race has started
             self.race_vars.isStarted = True
+            self.numStarts += 1
             # Put the start time of the race into the dictionary
             self.race_vars.race['start_time'] = np.floor(cur_count / self.race_vars.race['frame_rate']) - 6
-            print self.race_vars.race['start_time']
+            print str(self.race_vars.race['start_time']) + '\t# of players: ' + str(self.numStarts)
             print '\t\tRace has started'
-
-            # Handle NUMBER OF PLAYERS
-            PlayerNumDetector().handle(frame, cur_count, player, mask)
             cv.waitKey()
 
     def detect(self, cur_frame, frame_cnt):
