@@ -29,7 +29,7 @@ def pixelate(image, resolution):
             cv.rectangle(display, (block*c, block*r), (block*c+block, block*r+block), [avg_b, avg_g, avg_r], -1)
     return rv, display
 
-def scaleImage(frame, mask):
+def scaleImage(frame, mask, frame_shape_default):
     '''
     Generates a new image mask with dimensions scaled to the size of the video frame.
     This works by calculating the percent into the frame both (x1,y1) and (x2,y2) occur.
@@ -42,11 +42,11 @@ def scaleImage(frame, mask):
     h_frame, w_frame, _ = frame.shape
     h_mask, w_mask, _ = mask.shape
     coords = ((0,0),(w_mask,h_mask))
-
+    
     x1_percentage = 0.0
     y1_percentage = 0.0
-    x2_percentage = coords[1][0] / 314.0 * 100.0
-    y2_percentage = coords[1][1] / 237.0 * 100.0
+    x2_percentage = coords[1][0] / float(frame_shape_default[1]) * 100.0
+    y2_percentage = coords[1][1] / float(frame_shape_default[0]) * 100.0
     
     newx1 = 0
     newy1 = 0
@@ -74,6 +74,12 @@ class RingBuffer(deque):
             return True;
         else:
             return False;
+
+    def exists(self, item):
+        if self.count(item) > 0:
+            return True
+        else:
+            return False
 
     def tolist(self):
         return list(self)

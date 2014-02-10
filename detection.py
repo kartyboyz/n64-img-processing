@@ -14,12 +14,13 @@ import config
 
 # Parent class for all detectors
 class Detector(object):
-    def __init__(self, masks_path, freq, threshold, race_vars, buf_len=None):
+    def __init__(self, masks_path, freq, threshold, race_vars, default_frame, buf_len=None):
         self.masks = [(cv.imread(masks_path+name), name) for name in os.listdir(masks_path)]
         self.freq = freq
         self.threshold = threshold
         # Set self.scaled to True if masks have already been scaled or if scaling is not necessary.
         self.race_vars = race_vars
+        self.frame_shape_default = default_frame
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
         # Debug
@@ -27,31 +28,32 @@ class Detector(object):
 
     def detect(self, frame, cur_count):
         if cur_count % self.freq is 0:
+            player = 0
             # Note that this operation should only happen once per detector
             #print self.race_vars.player_boxes
             for player_box in self.race_vars.player_boxes:
                 tmp_frame = frame[player_box[0][0]:player_box[1][0], player_box[0][1]:player_box[1][1]]
-                self.process(tmp_frame, cur_count)
+                self.process(tmp_frame, cur_count, player)
+                player = (player + 1) % 4
 
-    def process(self, frame, cur_count):
+    def process(self, frame, cur_count, player):
         # Player counter
-        player = 1
         for mask in self.masks:
             # If player region (tmp_frame) is not 315x235, scale all masks accordingly
-            if frame.shape != (314, 237, 3):
-                scaled_mask = (utility.scaleImage(frame, mask[0]), mask[1])
+            if frame.shape != self.frame_shape_default:
+                scaled_mask = (utility.scaleImage(frame, mask[0], self.frame_shape_default), mask[1])
             else:
                 scaled_mask = (mask[0], mask[1])
-            cv.imshow('mask', scaled_mask[0])
             # Determine distances
             distance_map = cv.matchTemplate(frame, scaled_mask[0], cv.TM_SQDIFF_NORMED)
             threshold_areas = np.where(distance_map < self.threshold)
-            #print threshold_areas
+
+            # DEBUG
             for ii in range(len(threshold_areas[0])):
                 print scaled_mask[1], distance_map[threshold_areas[0][ii]][threshold_areas[1][ii]]
+
             if threshold_areas[0].size != 0:
                 self.handle(frame, cur_count, player, mask)
-        player += 1
 
 
 class EndRaceDetector(object):
@@ -99,6 +101,32 @@ class ItemDetector(Detector):
             # Update JSON!
             self.buffer.clear()
 
+
+class CharacterDetector(Detector):
+    def detect(self, frame, cur_count):
+        # If the race has started, but the detector is still active, deactivate it
+        if not self.race_vars.isStarted and (cur_count % self.freq is 0):
+            player = 0
+            # Note that this operation should only happen once per detector
+            #print self.race_vars.player_boxes
+            for player_box in self.race_vars.player_boxes:
+                tmp_frame = frame[player_box[0][0]:player_box[1][0], player_box[0][1]:player_box[1][1]]
+                h_frame, w_frame, _ = tmp_frame.shape
+                # Optimize by only taking a specific region (indicated by percentages)
+                tmp_frame = tmp_frame[np.ceil(h_frame*0.25):np.ceil(h_frame*0.95), np.ceil(w_frame*0.25):np.ceil(w_frame*0.75)]
+                cv.imshow('char_region', tmp_frame)
+                self.process(tmp_frame, cur_count, player)
+                player = (player + 1) % 4
+            #super(CharacterDetector, self).detect(frame, cur_count)
+
+    def handle(self, frame, cur_count, player, mask):
+        # If the matched mask isn't already in race_vars.race, add it. Else, do nothing
+        if self.race_vars.race[mask[1].split('.')[0].split('_')[1]] != mask[1].split('.')[0].split('_')[0]:
+            self.race_vars.race[mask[1].split('.')[0].split('_')[1]] = mask[1].split('.')[0].split('_')[0]
+            print 'Player ' + mask[1].split('.')[0].split('_')[1][1] + ' is ' + mask[1].split('.')[0].split('_')[0]
+            cv.waitKey()
+            # Update JSON!
+
 class BoxExtractor(object):
     def __init__(self, race_vars):
         self.race_vars = race_vars
@@ -117,8 +145,8 @@ class BoxExtractor(object):
         hor_projection *= 255/(hor_projection.max()+1)
         ver_projection *= 255/(ver_projection.max()+1)
         # Extract black line projection indices
-        hor_lines = np.where(hor_projection == 0)[0]
-        ver_lines = np.where(ver_projection == 0)[0]
+        hor_lines = np.where(hor_projection <= 25)[0]
+        ver_lines = np.where(ver_projection <= 25)[0]
         hor_lines = hor_lines-OFFSET+1
         ver_lines = ver_lines-OFFSET+1
         # Partition to extract coordinates
@@ -147,6 +175,12 @@ class BoxExtractor(object):
                 # DEBUG
                 cv.imshow('region ' + str(i), cur_frame[col[0]:col[1], row[0]:row[1]])
                 i +=1
+            
+            # xxx: Must change this code to still switch regions 1 and 2, but do it much cleaner
+            if len(self.race_vars.player_boxes) > 3:
+                tmp_box = self.race_vars.player_boxes[1]
+                self.race_vars.player_boxes[1] = self.race_vars.player_boxes[2]
+                self.race_vars.player_boxes[2] = tmp_box
 
         # DEBUG
         #hh = np.zeros((255, hor_projection.shape[0]))
@@ -164,9 +198,9 @@ class BoxExtractor(object):
 
 
 class StartRaceDetector(Detector):
-    def __init__(self, masks_path, freq, threshold, race_vars, buf_len=None):
+    def __init__(self, masks_path, freq, threshold, race_vars, default_frame, buf_len=None):
         self.numStarts = 0
-        super(StartRaceDetector, self).__init__(masks_path, freq, threshold, race_vars, buf_len=None)
+        super(StartRaceDetector, self).__init__(masks_path, freq, threshold, race_vars, default_frame, buf_len=None)
 
     def handle(self, frame, cur_count, player, mask):
             # Set isStarted to True since race has started
@@ -179,7 +213,7 @@ class StartRaceDetector(Detector):
             cv.waitKey()
 
     def detect(self, cur_frame, frame_cnt):
-        # If race hasn't started, initiate detection.
+        # If race hasn't started and no characters chosen, initiate detection.
         if not self.race_vars.isStarted:
             super(StartRaceDetector, self).detect(cur_frame, frame_cnt)
 
@@ -194,6 +228,10 @@ class RageQuit(Detector):
         self.race_vars.race['start_time'] = 0
         self.race_vars.race['race_duration'] = 0
         self.race_vars.race['num_players'] = 0
+        self.race_vars.race['p1'] = 0
+        self.race_vars.race['p2'] = 0
+        self.race_vars.race['p3'] = 0
+        self.race_vars.race['p4'] = 0
 
     def handle(self, frame, cur_count, player, mask):
         print 'Rage Quit Detected'
@@ -221,10 +259,13 @@ class Engine(object):
     def add_detector(self, detector):
         self.detectors.extend(detector)
 
+    def remove_detector(self, index):
+        self.detectors.pop(index)
+
     def process(self):
         while self.cur_frame is not None:
-            for d in self.detectors:
-                d.detect(self.cur_frame, self.frame_cnt)
+            for ii in range(len(self.detectors)):
+                self.detectors[ii].detect(self.cur_frame, self.frame_cnt)
             ret, self.cur_frame = self.capture.read()
             cv.imshow(self.name, self.cur_frame)
             self.frame_cnt += 1
