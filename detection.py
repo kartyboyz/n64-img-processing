@@ -50,7 +50,7 @@ class Detector(object):
 
             # DEBUG
             for ii in range(len(threshold_areas[0])):
-                print scaled_mask[1], distance_map[threshold_areas[0][ii]][threshold_areas[1][ii]]
+                print 'Mask: ' + scaled_mask[1] + ', Distance: ' + str(distance_map[threshold_areas[0][ii]][threshold_areas[1][ii]])
 
             if threshold_areas[0].size != 0:
                 self.handle(frame, cur_count, player, mask)
@@ -63,7 +63,7 @@ class EndRaceDetector(object):
 
     def detect(self, frame, cur_count):
         # If race hasn't started, still on map selection, or player selection pages, do not process
-        if self.race_vars.isStarted:
+        if self.race_vars.is_started:
             self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
@@ -71,24 +71,21 @@ class EndRaceDetector(object):
         # XXX/TODO: This is REALLY slow for actual black frames :(
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
         # ROI is the verticle black line separator. Then threshold.
-        gray = gray[239, :]
-        gray[gray <= 50] = 0
-        h = gray.shape[0]
-        # Check ROI for black lines
-        black_count_h = np.sum(gray == 0)
-        # Using w-40 as threshold to lower false positive rate
-        if black_count_h <= h - 40:
+        _, gray = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)
+        # Check frame for all black everything
+        black_count = float(np.sum(gray)) / float(gray.size)
+        # If at least 80% of the frame is true black, then it's the end of the race
+        if black_count <= 0.2:
             self.handle(frame, cur_count)
 
     def handle(self, frame, cur_count):
         x = 0
         # Set isStarted back to False in order to process another race
-        self.race_vars.isStarted = False
+        self.race_vars.is_started = False
         # Put the race duration in the dictionary
-        self.race_vars.race['race_duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time']) + 7
-        print self.race_vars.race['race_duration']
-        database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars.race['race_duration'])
-        print 'End of race detected'
+        self.race_vars.race['race_duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time'])
+        #database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars.race['race_duration'])
+        print '[EndRaceDetector]: End of race detected after ' + str(self.race_vars.race['race_duration']) + ' seconds.'
         cv.waitKey()
 
 
@@ -96,7 +93,7 @@ class ItemDetector(Detector):
     def handle(self, frame, cur_count, player, mask):
         self.buffer.append(mask[1])
         if self.buffer.all_same():
-            print '\t\t\tPlayer ' + str(player) + ' has ' + mask[1]
+            print '[ItemDetector]: Player ' + str(player) + ' has ' + mask[1]
             cv.waitKey()
             # Update JSON!
             self.buffer.clear()
@@ -105,7 +102,7 @@ class ItemDetector(Detector):
 class CharacterDetector(Detector):
     def detect(self, frame, cur_count):
         # If the race has started, but the detector is still active, deactivate it
-        if not self.race_vars.isStarted and (cur_count % self.freq is 0):
+        if not self.race_vars.is_started and (cur_count % self.freq is 0):
             player = 0
             # Note that this operation should only happen once per detector
             #print self.race_vars.player_boxes
@@ -198,33 +195,27 @@ class BoxExtractor(object):
 
 
 class StartRaceDetector(Detector):
-    def __init__(self, masks_path, freq, threshold, race_vars, default_frame, buf_len=None):
-        self.numStarts = 0
-        super(StartRaceDetector, self).__init__(masks_path, freq, threshold, race_vars, default_frame, buf_len=None)
-
     def handle(self, frame, cur_count, player, mask):
             # Set isStarted to True since race has started
-            self.race_vars.isStarted = True
-            self.numStarts += 1
+            self.race_vars.is_started = True
             # Put the start time of the race into the dictionary
             self.race_vars.race['start_time'] = np.floor(cur_count / self.race_vars.race['frame_rate']) - 6
-            print str(self.race_vars.race['start_time']) + '\t# of players: ' + str(self.numStarts)
-            print '\t\tRace has started'
+            print '[StartRaceDetector]: Race started at ' + str(self.race_vars.race['start_time']) + ' seconds.'
             cv.waitKey()
 
     def detect(self, cur_frame, frame_cnt):
         # If race hasn't started and no characters chosen, initiate detection.
-        if not self.race_vars.isStarted:
+        if not self.race_vars.is_started:
             super(StartRaceDetector, self).detect(cur_frame, frame_cnt)
 
 class RageQuit(Detector):
     def detect(self, cur_frame, frame_cnt):
-        if self.race_vars.isStarted:
+        if self.race_vars.is_started:
             super(RageQuit, self).detect(cur_frame, frame_cnt)
 
     def reset(self):
         # Reset state variables so that the next race can be processed
-        self.race_vars.isStarted = False
+        self.race_vars.is_started = False
         self.race_vars.race['start_time'] = 0
         self.race_vars.race['race_duration'] = 0
         self.race_vars.race['num_players'] = 0
@@ -254,7 +245,7 @@ class Engine(object):
         # Debug
         cv.namedWindow(src, 1)
         self.toggle = 1
-        print '[Engine] initialization complete.'
+        print '[Engine]: initialization complete.'
 
     def add_detector(self, detector):
         self.detectors.extend(detector)
