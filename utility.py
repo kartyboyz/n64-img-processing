@@ -83,3 +83,15 @@ class RingBuffer(deque):
 
     def tolist(self):
         return list(self)
+
+def find_unique(container, index=None):
+    results = list()
+    if index is not None:
+        for thing in container:
+            if thing[index] not in results:
+                results.append(thing[index])
+    else:
+        for thing in container:
+            if thing not in results:
+                results.append(thing)
+    return results

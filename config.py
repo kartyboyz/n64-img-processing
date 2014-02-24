@@ -18,4 +18,6 @@ class Race(object):
             'frame_rate':    0,}
         self.is_started = False
         self.player_boxes = list();
-        
+        self.is_black = False
+
+detector_states = dict()

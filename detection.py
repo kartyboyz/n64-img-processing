@@ -26,17 +26,17 @@ class Detector(object):
         # Debug
         self.toggle = 0
 
-    def detect(self, frame, cur_count):
+    def detect(self, frame, cur_count, detector_states):
         if cur_count % self.freq is 0:
             player = 0
             # Note that this operation should only happen once per detector
             #print self.race_vars.player_boxes
             for player_box in self.race_vars.player_boxes:
                 tmp_frame = frame[player_box[0][0]:player_box[1][0], player_box[0][1]:player_box[1][1]]
-                self.process(tmp_frame, cur_count, player)
+                self.process(tmp_frame, cur_count, player, detector_states)
                 player = (player + 1) % 4
 
-    def process(self, frame, cur_count, player):
+    def process(self, frame, cur_count, player, detector_states):
         # Player counter
         for mask in self.masks:
             # If player region (tmp_frame) is not 315x235, scale all masks accordingly
@@ -49,22 +49,48 @@ class Detector(object):
             threshold_areas = np.where(distance_map < self.threshold)
 
             # DEBUG
-            for ii in range(len(threshold_areas[0])):
-                print 'Mask: ' + scaled_mask[1] + ', Distance: ' + str(distance_map[threshold_areas[0][ii]][threshold_areas[1][ii]])
+            minval, _, minloc, _ = cv.minMaxLoc(distance_map)
+            if minval <= self.threshold:
+                print 'Mask: ' + scaled_mask[1] + ', Distance: ' + str(minval) + ', Loocation: ' + str(minloc)
+                self.handle(frame, cur_count, player, mask, detector_states)
 
-            if threshold_areas[0].size != 0:
-                self.handle(frame, cur_count, player, mask)
-
+            #for ii in range(len(threshold_areas[0])):
+                #print 'Location: ' + str(distance_map[threshold_areas[0][ii]])
 
 class EndRaceDetector(object):
     def __init__(self, session_id, race_vars):
         self.session_id = session_id
         self.race_vars = race_vars
 
-    def detect(self, frame, cur_count):
-        # If race hasn't started, still on map selection, or player selection pages, do not process
+    def detect(self, frame, cur_count, detector_states):
         if self.race_vars.is_started:
-            self.process(frame, cur_count)
+            if self.race_vars.is_black:
+                self.handle(cur_count, detector_states)
+        else:
+            detector_states['EndRaceDetector'] = False
+
+    def handle(self, cur_count, detector_states):
+        self.race_vars.is_started = False
+        # On end race, deactivate EndRaceDetector and activate StartRaceDetector and CharDetector
+        detector_states['EndRaceDetector'] = False
+        detector_states['StartRaceDetector'] = True
+        detector_states['CharacterDetector'] = True
+        print detector_states
+        # Put the race duration in the dictionary
+        self.race_vars.race['race_duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time'])
+        #database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars.race['race_duration'])
+        print '[EndRaceDetector]: End of race detected after ' + str(self.race_vars.race['race_duration']) + ' seconds.'
+        cv.waitKey()
+
+
+class BlackFrameDetector(object):
+    def __init__(self, race_vars):
+        self.race_vars = race_vars
+
+    def detect(self, frame, cur_count, detector_states):
+        # On every new frame, set the is_black variable to false
+        self.race_vars.is_black = False
+        self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
          # Threshold for true black
@@ -79,29 +105,32 @@ class EndRaceDetector(object):
             self.handle(frame, cur_count)
 
     def handle(self, frame, cur_count):
-        x = 0
-        # Set isStarted back to False in order to process another race
-        self.race_vars.is_started = False
-        # Put the race duration in the dictionary
-        self.race_vars.race['race_duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time'])
-        #database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars.race['race_duration'])
-        print '[EndRaceDetector]: End of race detected after ' + str(self.race_vars.race['race_duration']) + ' seconds.'
+        self.race_vars.is_black = True
+        print self.race_vars.is_black
         cv.waitKey()
 
 
 class ItemDetector(Detector):
-    def handle(self, frame, cur_count, player, mask):
+    def handle(self, frame, cur_count, player, mask, detector_states):
         self.buffer.append(mask[1])
-        if self.buffer.all_same():
-            print '[ItemDetector]: Player ' + str(player) + ' has ' + mask[1]
-            cv.waitKey()
-            # Update JSON!
-            self.buffer.clear()
+        # If a blank box is detected, the used item is the previous item hit
+        if (len(self.buffer) > 1) and (mask[1] == 'blank_box.png'):
+            if self.buffer[len(self.buffer) - 2] != 'blank_box.png':
+                print '[ItemDetector]: Player ' + str(player) + ' has ' + self.buffer[len(self.buffer) - 2]
+                cv.waitKey()
+                # Update JSON and clear the ring buffer!
+                self.buffer.clear()
 
 
 class CharacterDetector(Detector):
-    def detect(self, frame, cur_count):
+    def __init__(self, masks_path, freq, threshold, race_vars, default_frame, buf_len=None):
+        self.waiting_black = False
+        super(CharacterDetector, self).__init__(masks_path, freq, threshold, race_vars, default_frame, buf_len)
+
+    def detect(self, frame, cur_count, detector_states):
         # If the race has started, but the detector is still active, deactivate it
+        if self.waiting_black and self.race_vars.is_black:
+            self.store_players()
         if not self.race_vars.is_started and (cur_count % self.freq is 0):
             player = 0
             # Note that this operation should only happen once per detector
@@ -112,23 +141,28 @@ class CharacterDetector(Detector):
                 # Optimize by only taking a specific region (indicated by percentages)
                 tmp_frame = tmp_frame[np.ceil(h_frame*0.25):np.ceil(h_frame*0.95), np.ceil(w_frame*0.25):np.ceil(w_frame*0.75)]
                 cv.imshow('char_region', tmp_frame)
-                self.process(tmp_frame, cur_count, player)
+                self.process(tmp_frame, cur_count, player, detector_states)
                 player = (player + 1) % 4
-            #super(CharacterDetector, self).detect(frame, cur_count)
 
-    def handle(self, frame, cur_count, player, mask):
-        # If the matched mask isn't already in race_vars.race, add it. Else, do nothing
-        if self.race_vars.race[mask[1].split('.')[0].split('_')[1]] != mask[1].split('.')[0].split('_')[0]:
-            self.race_vars.race[mask[1].split('.')[0].split('_')[1]] = mask[1].split('.')[0].split('_')[0]
-            print 'Player ' + mask[1].split('.')[0].split('_')[1][1] + ' is ' + mask[1].split('.')[0].split('_')[0]
-            cv.waitKey()
-            # Update JSON!
+    def handle(self, frame, cur_count, player, mask, detector_states):
+        self.waiting_black = True
+        # If the matched mask isn't alraedy in race_vars.race, add it. Else, do nothing
+        #if self.race_vars.race[mask[1].split('.')[0].split('_')[1]] != mask[1].split('.')[0].split('_')[0]:
+        #self.race_vars.race[mask[1].split('.')[0].split('_')[1]] = mask[1].split('.')[0].split('_')[0]
+        #print 'Player ' + mask[1].split('.')[0].split('_')[1][1] + ' is ' + mask[1].split('.')[0].split('_')[0]
+        cv.waitKey()
+        # Update JSON!
+
+    def store_players(self):
+        players = utility.find_unique(self.buffer)
+        self.waiting_black = False
+        print players
 
 class BoxExtractor(object):
     def __init__(self, race_vars):
         self.race_vars = race_vars
 
-    def detect(self, cur_frame, frame_cnt):
+    def detect(self, cur_frame, frame_cnt, detector_states):
         OFFSET = 10
         # Force black frame to ensure first coord is top left
         border_frame = cv.copyMakeBorder(cur_frame, OFFSET, OFFSET, OFFSET, OFFSET, cv.BORDER_CONSTANT, (0, 0, 0))
@@ -195,18 +229,25 @@ class BoxExtractor(object):
 
 
 class StartRaceDetector(Detector):
-    def handle(self, frame, cur_count, player, mask):
+#    def detect(self, cur_frame, frame_cnt):
+#        # If race hasn't started and no characters chosen, initiate detection.
+#        if self.race_vars.is_started:
+#            super(StartRaceDetector, self).detect(cur_frame, frame_cnt)
+
+
+    def handle(self, frame, cur_count, player, mask, detector_states):
             # Set isStarted to True since race has started
             self.race_vars.is_started = True
+            # On race start, deactivate StartRaceDetector and activate EndRaceDetector
+            detector_states['StartRaceDetector'] = False
+            detector_states['EndRaceDetector'] = True
+            detector_states['CharacterDetector'] = False
+            print detector_states
             # Put the start time of the race into the dictionary
             self.race_vars.race['start_time'] = np.floor(cur_count / self.race_vars.race['frame_rate']) - 6
             print '[StartRaceDetector]: Race started at ' + str(self.race_vars.race['start_time']) + ' seconds.'
             cv.waitKey()
 
-    def detect(self, cur_frame, frame_cnt):
-        # If race hasn't started and no characters chosen, initiate detection.
-        if not self.race_vars.is_started:
-            super(StartRaceDetector, self).detect(cur_frame, frame_cnt)
 
 class RageQuit(Detector):
     def detect(self, cur_frame, frame_cnt):
@@ -224,16 +265,17 @@ class RageQuit(Detector):
         self.race_vars.race['p3'] = 0
         self.race_vars.race['p4'] = 0
 
-    def handle(self, frame, cur_count, player, mask):
+    def handle(self, frame, cur_count, player, mask, detector_states):
         print 'Rage Quit Detected'
         self.reset()
         cv.waitKey()
 
 class Engine(object):
-    def __init__(self, src, race_vars):
+    def __init__(self, src, race_vars, detector_states):
         self.name = src
         self.capture = cv.VideoCapture(src)
         self.race_vars = race_vars
+        self.detector_states = detector_states
         self.race_vars.race['frame_rate'] =  self.capture.get(cv1.CV_CAP_PROP_FPS)
         self.ret, self.cur_frame = self.capture.read()
 
@@ -247,8 +289,10 @@ class Engine(object):
         self.toggle = 1
         print '[Engine]: initialization complete.'
 
-    def add_detector(self, detector):
-        self.detectors.extend(detector)
+    def add_detector(self, detectors):
+        self.detectors.extend(detectors)
+        for detector in detectors:
+            self.detector_states.update({str(type(detector)).split('\'')[1].split('.')[1]: True})
 
     def remove_detector(self, index):
         self.detectors.pop(index)
@@ -256,7 +300,8 @@ class Engine(object):
     def process(self):
         while self.cur_frame is not None:
             for ii in range(len(self.detectors)):
-                self.detectors[ii].detect(self.cur_frame, self.frame_cnt)
+                if self.detector_states[str(type(self.detectors[ii])).split('\'')[1].split('.')[1]]:
+                    self.detectors[ii].detect(self.cur_frame, self.frame_cnt, self.detector_states)
             ret, self.cur_frame = self.capture.read()
             cv.imshow(self.name, self.cur_frame)
             self.frame_cnt += 1

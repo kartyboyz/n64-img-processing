@@ -6,7 +6,8 @@ import config
 def main(session_id, video_file):
     # Initialization
     race_vars = config.Race()
-    r = detection.Engine(src=video_file.name, race_vars=race_vars)
+    detector_states = config.detector_states
+    r = detection.Engine(src=video_file.name, race_vars=race_vars, detector_states=detector_states)
     box_extractor = detection.BoxExtractor(race_vars=race_vars)
     start_race = detection.StartRaceDetector(
                                             masks_path='./high_res_masks/start_masks/',
@@ -15,15 +16,17 @@ def main(session_id, video_file):
                                             race_vars=race_vars,
                                             default_frame=(237, 314, 3))
     end_race = detection.EndRaceDetector(session_id, race_vars)
+    black_frames = detection.BlackFrameDetector(race_vars)
     char_detector = detection.CharacterDetector(
                                                 masks_path='./high_res_masks/char_masks/',
                                                 freq=2,
                                                 threshold=0.034,
                                                 race_vars=race_vars,
-                                                default_frame=(333, 318, 3))
+                                                default_frame=(333, 318, 3),
+                                                buf_len=8)
 
     # Prepare engine
-    r.add_detector([box_extractor, start_race, end_race, char_detector])
+    r.add_detector([black_frames, box_extractor, start_race, end_race, char_detector])
     # Process
     r.process()
 
