@@ -1,11 +1,107 @@
 from collections import deque
+import multiprocessing
+
 import numpy as np
 import cv2 as cv
 
+import multiprocessing as mp
+import time
 
-# Global function to average and downsize an image
+
+class BrokenBarrierError(Exception):
+    pass
+
+
+class Barrier(object):
+    '''
+    multiprocessing.Barrier implementation from Python 3.3
+    '''
+    def __init__(self, parties, action=None, timeout=None, action_args=()):
+        if parties <= 0:
+            raise ValueError('parties must be greater than 0')
+        self._parties = parties
+        self._action = action
+        self._action_args = action_args
+        self._timeout = timeout
+        self._lock = mp.RLock()
+        self._counter = mp.Semaphore(parties-1)
+        self._wait_sem = mp.Semaphore(0)
+        self._broken = mp.Semaphore(0)
+
+    def wait(self, timeout=None):
+        # When each thread enters the semaphore it tries to do a
+        # non-blocking acquire on _counter.  Since the original value
+        # of _counter was parties-1, the last thread to enter will
+        # fail to acquire the semaphore.  This final thread is the
+        # "control" thread, and it is responsible for waking the
+        # threads which arrived before it, waiting for them to
+        # respond, calling the action (if any) and resetting barrier.
+        # wait() returns 0 from the control thread; from all other
+        # threads it returns -1.
+        if timeout is None:
+            timeout = self._timeout
+        with self._lock:
+            try:
+                if self._counter.acquire(timeout=0):
+                    # we are not the control thread
+                    self._lock.release()
+                    try:
+                        # - wait to be woken by control thread
+                        if not self._wait_sem.acquire(timeout=timeout):
+                            raise BrokenBarrierError
+                        res = -1
+                    finally:
+                        self._counter.release()
+                        self._lock.acquire()
+                else:
+                    # we are the control thread
+                    # - release the early arrivers
+                    for i in range(self._parties-1):
+                        self._wait_sem.release()
+                    # - wait for all early arrivers to wake up
+                    for i in range(self._parties-1):
+                        temp = self._counter.acquire(timeout=5)
+                        assert temp
+                    # - reset state of the barrier
+                    for i in range(self._parties-1):
+                        self._counter.release()
+                    # - carry out action and return
+                    if self._action is not None:
+                        self._action(*self._action_args)
+                    res = 0
+            except:
+                self.abort()
+                raise
+            return res
+
+    def abort(self):
+        with self._lock:
+            if self.broken:
+                return
+            self._broken.release()
+            # release any waiters
+            for i in range(self._parties - 1):
+                self._wait_sem.release()
+
+    @property
+    def broken(self):
+        return not self._broken._semlock._is_zero()
+
+    @property
+    def parties(self):
+        return self._parties
+
+    @property
+    def n_waiting(self):
+        with self._lock:
+            if self.broken:
+                raise BrokenBarrierError
+            return (self._parties - 1) - self._counter.get_value()
+
+
 def pixelate(image, resolution):
     '''
+    Global function to average and downsize an image
     Generates a new image with dimesions [resolution]x[resolution],
     with each cell containing the average color of its corresponding
     block in the 'image' parameter
@@ -37,7 +133,6 @@ def scaleImage(frame, mask, frame_shape_default):
     Then compute the new x y pairs based on the calculated percentages and pass results onto cv.resize.
     Resizing operation is done via bilinear interpolation.
     '''
-
     # Get the dimensions of the frame and the shape of the mask
     h_frame, w_frame, _ = frame.shape
     h_mask, w_mask, _ = mask.shape
@@ -60,6 +155,10 @@ def scaleImage(frame, mask, frame_shape_default):
     return scaled_image
 
 class RingBuffer(deque):
+    '''
+    Deque-based ring-buffer implementation. Initialized to a max size,
+    pops off front when full.
+    '''
     def __init__(self, max_size):
         deque.__init__(self)
         self.__max_size = max_size
@@ -85,6 +184,10 @@ class RingBuffer(deque):
         return list(self)
 
 def find_unique(container, index=None):
+    '''
+    Generic function for determining all unique elements in a container.
+    If 'index' is specified, it compares that index of each element.
+    '''
     results = list()
     if index is not None:
         for thing in container:
