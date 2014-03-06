@@ -19,6 +19,8 @@ import config
 import utility
 
 DEBUG_LEVEL = 1
+BUFFER_LENGTH = 200
+
 
 class Worker(multiprocessing.Process):
     """Worker process containing detetors, shared memory, and event triggers"""
@@ -43,31 +45,32 @@ class Worker(multiprocessing.Process):
             self.detectors.append(name)
 
     def run(self):
-        """ Waits to be fed a new frame, then processes it"""
+        """Waits to be fed a new frame, then processes it"""
         while True:
             if self.done.is_set():
                 break
             self.event.wait() # Blocking - trigger MUST be set
-            frame = np.frombuffer(self.shared.get_obj(), dtype=ctypes.c_ubyte)
-            frame = frame.reshape(self.shape[0], self.shape[1], self.shape[2])
-            region = frame[self.bounds[0][0] : self.bounds[1][0],
+
+            for buf_el in self.shared:
+                print "Buf"
+                buff = np.frombuffer(buf_el.get_obj(), dtype=ctypes.c_ubyte)
+                frame =buff.reshape(self.shape[0], self.shape[1], self.shape[2])
+                region = frame[self.bounds[0][0] : self.bounds[1][0],
                            self.bounds[0][1] : self.bounds[1][1]]
+                for d in self.detectors:
+                    d.detect(region, self.count)
+                if DEBUG_LEVEL > 0:
+                    cv.imshow(self.name, region)
+                    cv.waitKey(1)
+                self.count += 1
 
-            for d in self.detectors:
-                d.detect(region, self.count)
-
-            if DEBUG_LEVEL > 0:
-                cv.imshow(self.name, region)
-                cv.waitKey(1)
-
-            self.count += 1
             self.event.clear()
             #self.barrier.wait()
         print '[%s] Exiting' % self.name
 
 
 class Detector(object):
-    """ Parent class for all detectors, written specifically for MK64 events """
+    """Parent class for all detectors, written specifically for MK64 events """
     def __init__(self, masks_dir, freq, threshold, default_shape, race_vars, states, buf_len=None):
         #if type(self) is Detector:
         #    raise Exception("<Detector> should be subclassed.")
@@ -93,8 +96,7 @@ class Detector(object):
             if frame.shape != self.default_shape:
                 scaled_mask = (utility.scaleImage(frame,
                                                   mask[0],
-                                                  self.default_shape),
-                               mask[1])
+                                                  self.default_shape), mask[1])
             else:
                 scaled_mask = (mask[0], mask[1])
             distance_map = cv.matchTemplate(frame, scaled_mask[0], cv.TM_SQDIFF_NORMED)
@@ -109,13 +111,16 @@ class ProcessManager(object):
         if len(regions) != num:
             raise Exception("[%s] Assertion failed" % (self.__class__.__name__))
         self.barrier = barrier
-        # Shared memory setup
+        # Shared memory buffer setup
         self.manager = multiprocessing.Manager()
-        self.shared = multiprocessing.Array(ctypes.c_ubyte, video_source.size)
-        self.image = np.frombuffer(self.shared.get_obj(), dtype=ctypes.c_ubyte)
-        self.image[:] = video_source.ravel()
+
+        self.shared = [multiprocessing.Array(ctypes.c_ubyte, video_source.size)
+                       for _ in xrange(BUFFER_LENGTH)]
+        self.image = [np.frombuffer(self.shared[idx].get_obj(), dtype=ctypes.c_ubyte)
+                      for idx in xrange(BUFFER_LENGTH)]
 
         # Object instantiation
+        #TODO Clean this 
         self.data = self.manager.list([None, None, None, None])
         self.triggers = [multiprocessing.Event() for _ in xrange(4)]
         self.locks = [multiprocessing.Lock() for _ in xrange(4)]
@@ -149,7 +154,7 @@ class ProcessManager(object):
 
 
 class Engine():
-    """Driving module that manages Detectors and feeds them video frames"""
+    """Driving module that feeds Workers video frames"""
     def __init__(self, video_source):
         self.name = video_source
         self.capture = cv.VideoCapture(video_source)
@@ -183,10 +188,14 @@ class Engine():
         """Loops through video source, feeding child processes new data"""
         frame_count = 0
         while self.frame is not None:
-            self.manager.image[:] = self.frame.ravel() # Update shared memory
+            for i in xrange(BUFFER_LENGTH):
+                self.manager.image[i][:] = self.frame.ravel()
+                self.ret, self.frame = self.capture.read()
+                if self.frame is None:
+                    break
             self.manager.detect()
 
-            #self.barrier.wait()
+            self.barrier.wait()
 
             if DEBUG_LEVEL > 0:
                 cv.imshow(self.name, self.frame)
@@ -196,7 +205,6 @@ class Engine():
                     return
                 elif key is 32:
                     self.toggle ^= 1
-            self.ret, self.frame = self.capture.read()
 
     def cleanup(self):
         """Frees all memory, alerts child processes to finish"""
@@ -216,6 +224,7 @@ if __name__ == '__main__':
                      default_shape=(237, 314, 3),
                      race_vars=None,
                      states=None)
+
     ENGINE = Engine(sys.argv[1])
     ENGINE.setup_processes(1, [((0, 0), (237, 314))])
     ENGINE.add_detectors([ITEMS])
