@@ -14,7 +14,7 @@ class BrokenBarrierError(Exception):
 
 class Barrier(object):
     '''
-    multiprocessing.Barrier implementation from Python 3.3
+    multiprocessing.Barrier implementation imported from Python 3.3
     '''
     def __init__(self, parties, action=None, timeout=None, action_args=()):
         if parties <= 0:
@@ -154,6 +154,10 @@ def scaleImage(frame, mask, frame_shape_default):
     scaled_image = cv.resize(mask, (newx2,newy2), fx, fy, cv.INTER_LINEAR)
     return scaled_image
 
+def inRange(number, low, high):
+    """Determines if a number is bounded by low, high"""
+    return (low <= number and number <= high)
+
 class RingBuffer(deque):
     '''
     Deque-based ring-buffer implementation. Initialized to a max size,
@@ -182,6 +186,7 @@ class RingBuffer(deque):
 
     def tolist(self):
         return list(self)
+
 
 def find_unique(container, index=None):
     '''
