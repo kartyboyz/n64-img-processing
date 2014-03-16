@@ -1,43 +1,55 @@
 #!/usr/bin/env python
+
 import sys
 import detection
 import config
+import parallel
 
 def main(session_id, video_file):
-    # Initialization
-    race_vars = config.Race()
-    detector_states = config.detector_states
-    r = detection.Engine(src=video_file.name, race_vars=race_vars, detector_states=detector_states)
-    box_extractor = detection.BoxExtractor(race_vars=race_vars)
-    start_race = detection.StartRaceDetector(
-                                            masks_path='./high_res_masks/start_masks/',
-                                            freq=1,
-                                            threshold=0.16,
-                                            race_vars=race_vars,
-                                            default_frame=(237, 314, 3))
-    end_race = detection.EndRaceDetector(session_id, race_vars)
-    black_frames = detection.BlackFrameDetector(race_vars)
-    char_detector = detection.CharacterDetector(
-                                                masks_path='./high_res_masks/char_masks/',
-                                                freq=2,
-                                                threshold=0.034,
-                                                race_vars=race_vars,
-                                                default_frame=(333, 318, 3),
-                                                buf_len=8)
+    VARIABLES = config.Race()
+    DETECTOR_STATES = config.detector_states
+    BLACK = detection.BlackFrame(race_vars=VARIABLES, states=DETECTOR_STATES,)
+    BOXES = detection.BoxExtractor(race_vars=VARIABLES, states=DETECTOR_STATES,)
+    ITEMS = detection.Items(masks_dir='./high_res_masks/item_masks/',
+                  freq=1,
+                  threshold=0.16,
+                  default_shape=(237, 314, 3),
+                  race_vars=VARIABLES,
+                  states=DETECTOR_STATES,
+                  buf_len=8)
+    #TODO Fix thresh. for CHARS
+    CHARS = detection.Characters(masks_dir='./high_res_masks/char_masks/',
+                       freq=1,
+                       threshold=0.10,
+                       default_shape=(333, 318, 3),
+                       race_vars=VARIABLES,
+                       states=DETECTOR_STATES,
+                       buf_len=8)
+    START_RACE = detection.StartRace(masks_dir='./high_res_masks/start_masks/',
+                           freq=1,
+                           threshold=0.16,
+                           default_shape=(237, 314, 3),
+                           race_vars=VARIABLES,
+                           states=DETECTOR_STATES)
+    END_RACE = detection.EndRace(race_vars=VARIABLES, states=DETECTOR_STATES, session_id=session_id)
 
-    # Prepare engine
-    r.add_detector([black_frames, box_extractor, start_race, end_race, char_detector])
-    # Process
-    r.process()
+    ENGINE = detection.Engine(race_vars=VARIABLES, states=DETECTOR_STATES, video_source=video_file.name)
+    ENGINE.setup_processes(num=1,
+                           regions=[((0,0), (480, 640))])
+                                    #[((0, 0), (237, 314)),
+                                    #((239, 316), (476, 630))])
+    ENGINE.add_detectors([START_RACE, END_RACE, CHARS, BOXES, BLACK])
+    ENGINE.process()
+    ENGINE.cleanup()
 
 if __name__ == '__main__':
     if len(sys.argv) is not 3:
-        print 'Please specify a session ID and video file.'
-        print 'Usage:'
-        print sys.argv[0], ' session_id video_source'
+        print "Please specify a session ID and video file."
+        print "Usage:"
+        print "%s <session ID> <video source>" % (sys.argv[0])
         exit(-1)
-    print 'Instructions:'
-    print '\t<ESC> exits program'
-    print '\t<space> pauses/unpauses current frame\n\n'
+    print "Instructions:"
+    print "\t<ESC> exits program"
+    print "\t<space> pauses/unpauses current frame\n\n"
     print sys.argv
     main(int(sys.argv[1]), open(sys.argv[2]))

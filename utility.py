@@ -154,7 +154,7 @@ def scaleImage(frame, mask, frame_shape_default):
     scaled_image = cv.resize(mask, (newx2,newy2), fx, fy, cv.INTER_LINEAR)
     return scaled_image
 
-def inRange(number, low, high):
+def in_range(number, low, high):
     """Determines if a number is bounded by low, high"""
     return (low <= number and number <= high)
 
