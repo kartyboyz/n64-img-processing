@@ -9,11 +9,13 @@
     * Clean certain sections (just use grep to find #CLEAN labels)
     * Maybe figure out how to reduce time taken by matchTemplate()?
       It's currently the slowest function call, and we use it a lot
-    * Split up multiprocessing into its own module (separate from Detection)
-    * We only need to reshape masks ONCE per Worker, so we should revert to
-      initial implementation for that
     * It might be nice to add a toggled waitKey() into each Worker
       s.t. we can pause those, too
+    * We have a couple of almost-God-like classes that have a BUNCH
+      of internal variables. We should see if we can decrease this somehow
+    * On a similar note, a lot of information is just trickled down to the
+      subprocess-level through wrapper functions. It's not necessarily bad,
+      but it seems pretty redundant
 """
 
 
@@ -33,14 +35,7 @@ import database
 import parallel
 import utility
 
-"""DEBUG_LEVEL :Describes intensity of feedback from video processing
-    = 0     No feedback
-    = 1     Minor feedback      Displaying current frame, print object detections, etc
-    = 2     Verbose feedback    Output intermediate values for more severe debugging
-    = 3     More verbose        This level will most likely just be used in development
-                                of features with unknown results
-"""
-DEBUG_LEVEL = 2
+from config import DEBUG_LEVEL
 
 class Detector(object):
     """Super (and abstract) class for all detectors, written specifically for MK64 events """
@@ -57,18 +52,21 @@ class Detector(object):
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
 
+    def name(self):
+        return self.__class__.__name__
+
     def is_active(self):
-        return self.detector_states[self.__class__.__name__]
+        return self.detector_states[self.name()]
 
     def activate(self):
-        self.detector_states[self.__class__.__name__] = True
+        self.detector_states[self.name()] = True
 
     def deactivate(self):
-        self.detector_states[self.__class__.__name__] = False
+        self.detector_states[self.name()] = False
 
 
     def detect(self, frame, cur_count):
-        """ Determines whether and how to process current frame """
+        """ Determines whether and how to process current frame"""
         if cur_count % self.freq is 0:
             self.process(frame, cur_count)
 
@@ -76,20 +74,20 @@ class Detector(object):
         """ Compares pre-loaded masks to current frame"""
         for mask in self.masks:
             if frame.shape != self.default_shape:
-                scaled_mask = (utility.scaleImage(frame,
+                scaled_mask = (utility.resize(frame,
                                                   mask[0],
                                                   self.default_shape), mask[1])
             else:
-                scaled_mask = (mask[0], mask[1])
+                scaled_mask = mask
             distances = cv.matchTemplate(frame, mask[0], cv.TM_SQDIFF_NORMED)
             minval, _, minloc, _ = cv.minMaxLoc(distances)
             if minval <= self.threshold:
                 player = 0 #TODO: Remove this shit
-                self.handle(frame, player, mask, cur_count)
+                self.handle(frame, player, mask, cur_count, minloc)
                 if DEBUG_LEVEL > 1:
                     print "Found %s :-)" % (mask[1])
 
-    def handle(self, frame, player, mask, cur_count):
+    def handle(self, frame, player, mask, cur_count, location):
         # Detectors should be subclassed
         raise NotImplementedError
 
@@ -118,8 +116,8 @@ class BlackFrame(Detector):
 
     def handle(self, frame, cur_count):
         self.race_vars.is_black = True
-        if DEBUG_LEVEL > 0:
-            print "[%s] Handled" % (self.__class__.__name__)
+        if DEBUG_LEVEL > 1:
+            print "[%s] Handled" % (self.name())
 
 
 class BoxExtractor(Detector):
@@ -128,77 +126,36 @@ class BoxExtractor(Detector):
         self.detector_states = states
 
     def detect(self, cur_frame, frame_cnt):
-        #CLEAN
         OFFSET = 10
-        # Force black frame to ensure first coord is top left
+        # Force black frame to ensure first coord is top left of frame
         border_frame = cv.copyMakeBorder(cur_frame, OFFSET, OFFSET, OFFSET, OFFSET, cv.BORDER_CONSTANT, (0, 0, 0))
         # Treshold + grayscale for binary image
         gray = cv.cvtColor(border_frame, cv.COLOR_BGR2GRAY)
         _, gray = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)
-        # Sum up rows/columns for 'black' projections
-        hor_projection = gray.sum(axis=0)
-        ver_projection = gray.sum(axis=1)
-        # Normalize to [1-255]
-        hor_projection *= 255/(hor_projection.max()+1)
-        ver_projection *= 255/(ver_projection.max()+1)
-        # Extract black line projection indices
-        hor_lines = np.where(hor_projection <= 25)[0]
-        ver_lines = np.where(ver_projection <= 25)[0]
-        hor_lines = hor_lines-OFFSET+1
-        ver_lines = ver_lines-OFFSET+1
-        # Partition to extract coordinates
-        hor_clumps = np.split(hor_lines, np.where(np.diff(hor_lines) != 1)[0]+1)
-        ver_clumps = np.split(ver_lines, np.where(np.diff(ver_lines) != 1)[0]+1)
-        # Extract first and last points in sequential range
-        hor_coords = [(hor_clumps[i][-1], hor_clumps[i+1][0]) for i in xrange(len(hor_clumps)-1)]
-        ver_coords = [(ver_clumps[i][-1], ver_clumps[i+1][0]) for i in xrange(len(ver_clumps)-1)]
-        # Filter out noisy data
-        hor_coords = [hor_coords[i] for i in np.where(np.diff(hor_coords) > 100)[0]]
-        ver_coords = [ver_coords[i] for i in np.where(np.diff(ver_coords) > 100)[0]]
-        hor_len = len(hor_coords)
-        ver_len = len(ver_coords)
+        points = [None] * 2
+        # Evaluate black lines & extract box coordinates
+        for axis in (0, 1):
+            projection = gray.sum(axis=axis)
+            projection *= 255/(projection.max() + 1)
+            black_lines = np.where(projection <= 25)[0] - OFFSET + 1
+            clumps =  np.split(black_lines, np.where(np.diff(black_lines) != 1)[0]+1)
+            coords = [(clumps[i][-1], clumps[i+1][0]) for i in xrange(len(clumps) - 1)]
+            filtered_coords = [coords[i] for i in np.where(np.diff(coords) > 125)[0]]
+            points[axis] = filtered_coords
 
-        i = 0 # DEBUG
-        self.race_vars.player_boxes[:] = []
-        if (hor_len <= 2 and hor_len > 0 and
-            ver_len <= 2 and ver_len > 0):
-            # Create all permutations for player regions
-            ranges = []
-            for perm in itertools.product(hor_coords, ver_coords):
-                ranges.append((perm[0], perm[1]))
-            for (row, col) in ranges:
-                # Update global configuration settings
-                self.race_vars.player_boxes.append([(col[0], row[0]), (col[1], row[1])])
-
-                if DEBUG_LEVEL > 2:
-                    cv.imshow('region ' + str(i), cur_frame[col[0]:col[1], row[0]:row[1]])
-                    i +=1
-            
-            # xxx: Must change this code to still switch regions 1 and 2, but do it much cleaner
-            if len(self.race_vars.player_boxes) > 3:
-                tmp_box = self.race_vars.player_boxes[1]
-                self.race_vars.player_boxes[1] = self.race_vars.player_boxes[2]
-                self.race_vars.player_boxes[2] = tmp_box
-
-        # DEBUG
-        if DEBUG_LEVEL > 2:
-            hh = np.zeros((255, hor_projection.shape[0]))
-            vh = np.zeros((ver_projection.shape[0], 255))
-            for ii in xrange(hor_projection.shape[0]):
-                if hor_projection[ii] > 1:
-                    if hor_projection[ii]:
-                        hh[0:hor_projection[ii], ii] = 1
-            for ii in xrange(ver_projection.shape[0]):
-                if ver_projection[ii] > 1:
-                    if ver_projection[ii]:
-                        vh[ii,0:ver_projection[ii]] = 1
-            cv.imshow('v', vh)
-            cv.imshow('h', hh)
-
+        if utility.in_range(len(points[0]), 1, 2) and \
+           utility.in_range(len(points[1]), 1, 2):
+            #TODO Fix permutations to reflect player number
+            self.race_vars.player_boxes[:] = []
+            for coord in itertools.product(points[0], points[1]):
+                self.race_vars.player_boxes.append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
+        else:
+            # Completely black frame
+            self.race_vars.player_boxes.append([(0, 0), (cur_frame.shape[0], cur_frame.shape[1])])
 
 class Items(Detector):
     """Detector for MK64 items"""
-    def handle(self, frame, player, mask, cur_count):
+    def handle(self, frame, player, mask, cur_count, location):
         blank = 'blank_box.png' # Name of image containing blank item box
         self.buffer.append(mask[1])
         last_item = self.buffer[len(self.buffer) - 2]
@@ -207,7 +164,8 @@ class Items(Detector):
             #TODO Update JSON here
             self.buffer.clear()
             if DEBUG_LEVEL > 1:
-                print "[%s] Player %s has %s" % (self.__class__.__name__, player, last_item)
+                print "[%s] Player %s has %s" % (self.name(), player, last_item)
+
 
 class Characters(Detector):
     def __init__(self, masks_dir, freq, threshold, default_shape, race_vars, states, buf_len=None):
@@ -216,33 +174,33 @@ class Characters(Detector):
 
     def detect(self, frame, cur_count):
         # If the race has started, but the detector is still active, deactivate it
-        if self.waiting_black and self.race_vars.is_black:
-            self.store_players()
+        if self.race_vars.is_black:
+            if self.waiting_black:
+                self.store_players()
+            else:
+                return
         if not self.race_vars.is_started and (cur_count % self.freq is 0):
-            player = 0
-            for player_box in self.race_vars.player_boxes:
-                tmp_frame = frame[player_box[0][0]:player_box[1][0], player_box[0][1]:player_box[1][1]]
-                h_frame, w_frame, _ = tmp_frame.shape
-                # Focus in on partial frame containing character boxes
-                tmp_frame = tmp_frame[np.ceil(h_frame*0.25):np.ceil(h_frame*0.95), np.ceil(w_frame*0.25):np.ceil(w_frame*0.75)]
-                self.process(tmp_frame, cur_count)
-                player = (player + 1) % 4
+            height, width, _ = frame.shape
+            focus_region = frame[np.ceil(height * 0.25) : np.ceil(height * 0.95),
+                                 np.ceil(width * 0.25) : np.ceil(width * 0.75)]
+            self.process(focus_region, cur_count)
+            if DEBUG_LEVEL > 1:
+                cv.imshow(self.name(), focus_region)
+                cv.waitKey(1)
 
-                if DEBUG_LEVEL > 1:
-                    cv.imshow('char_region', tmp_frame)
-                    cv.waitKey(1)
-
-    def handle(self, frame, player, mask, cur_count):
+    def handle(self, frame, player, mask, cur_count, location):
         self.waiting_black = True
+        self.buffer.append((mask[1], location))
 
     def store_players(self):
-        players = utility.find_unique(self.buffer)
+        characters = utility.find_unique(self.buffer, 0)
         self.waiting_black = False
-        print players
+        self.detector_states[self.name()] = False
+        print characters
 
 
 class StartRace(Detector):
-    def handle(self, frame, player, mask, cur_count):
+    def handle(self, frame, player, mask, cur_count, location):
             self.race_vars.is_started = True
             self.detector_states['StartRace'] = False
             self.detector_states['EndRace']   = True
@@ -266,7 +224,7 @@ class EndRace(Detector):
                 # Either rage-quit or clean race finish (we'll handle rage quits later)
                 self.handle(cur_count)
         else:
-            self.detector_states[self.__class__.__name__] = False
+            self.detector_states[self.name()] = False
 
     def handle(self, cur_count):
         self.race_vars.is_started = False
@@ -281,7 +239,7 @@ class EndRace(Detector):
         if DEBUG_LEVEL == 0:
             database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars.race['race_duration'])
         else:
-            print "[%s] End of race detected at t=%2.2f seconds" % (self.__class__.__name__, self.race_vars.race['race_duration'])
+            print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.race_vars.race['race_duration'])
             cv.waitKey()
 
 
@@ -295,6 +253,7 @@ class Engine():
 
         self.race_vars = race_vars
         self.race_vars.race['frame_rate'] = self.capture.get(cv1.CV_CAP_PROP_FPS)
+
         self.detector_states = states
 
         self.barrier = None
@@ -307,14 +266,14 @@ class Engine():
     def setup_processes(self, num, regions):
         """Generates child processes"""
         self.barrier = utility.Barrier(parties=(num+1))
-        self.manager = parallel.ProcessManager(num, regions, self.frame, self.barrier)
+        self.manager = parallel.ProcessManager(num, regions, self.frame, self.barrier, self.race_vars)
 
     def add_detectors(self, detect_list):
         """Appends new detectors to Workers, wrapping the ProcessManager"""
         if self.barrier is None:
             raise RuntimeError("You need to call setup_processes() first")
         for detector in detect_list:
-            self.detector_states[detector.__class__.__name__] = True
+            self.detector_states[detector.name()] = True
         self.manager.set_detectors(detect_list, self.detector_states)
         self.manager.start_workers()
 
@@ -327,7 +286,7 @@ class Engine():
                 self.manager.image[offset : offset + self.frame.size] = self.frame.ravel()
                 self.ret, self.frame = self.capture.read()
                 if self.frame is None:
-                    break
+                    break # Go to detect() and finally to cleanup()
                 if DEBUG_LEVEL > 0:
                     cv.imshow(self.name, self.frame)
                     frame_count += 1
@@ -336,7 +295,6 @@ class Engine():
                         return
                     elif key is 32:
                         self.toggle ^= 1
-
             self.manager.detect()
             self.barrier.wait()
 
