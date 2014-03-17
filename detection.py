@@ -16,6 +16,7 @@
     * On a similar note, a lot of information is just trickled down to the
       subprocess-level through wrapper functions. It's not necessarily bad,
       but it seems pretty redundant
+    * We still don't deal with zoomed-out Lakitu for StartRace!
 """
 
 
@@ -63,7 +64,6 @@ class Detector(object):
 
     def deactivate(self):
         self.detector_states[self.name()] = False
-
 
     def detect(self, frame, cur_count):
         """ Determines whether and how to process current frame"""
@@ -139,7 +139,7 @@ class BoxExtractor(Detector):
             projection *= 255/(projection.max() + 1)
             black_lines = np.where(projection <= 25)[0] - OFFSET + 1
             clumps =  np.split(black_lines, np.where(np.diff(black_lines) != 1)[0]+1)
-            coords = [(clumps[i][-1], clumps[i+1][0]) for i in xrange(len(clumps) - 1)]
+            coords = [(clumps[i][-1], clumps[i+1][0]) for i in range(len(clumps) - 1)]
             filtered_coords = [coords[i] for i in np.where(np.diff(coords) > 125)[0]]
             points[axis] = filtered_coords
 
@@ -152,6 +152,7 @@ class BoxExtractor(Detector):
         else:
             # Completely black frame
             self.race_vars.player_boxes.append([(0, 0), (cur_frame.shape[0], cur_frame.shape[1])])
+
 
 class Items(Detector):
     """Detector for MK64 items"""
@@ -173,7 +174,6 @@ class Characters(Detector):
         super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, race_vars, states, buf_len)
 
     def detect(self, frame, cur_count):
-        # If the race has started, but the detector is still active, deactivate it
         if self.race_vars.is_black:
             if self.waiting_black:
                 self.store_players()
@@ -193,10 +193,27 @@ class Characters(Detector):
         self.buffer.append((mask[1], location))
 
     def store_players(self):
-        characters = utility.find_unique(self.buffer, 0)
         self.waiting_black = False
         self.detector_states[self.name()] = False
-        print characters
+
+        characters = utility.find_unique(self.buffer, 0)
+        ordered = self.sort_characters(characters)
+        for player, image in enumerate(ordered):
+            char = image[0].rsplit(".", 1)[0]
+            self.race_vars.race["p" + str(player + 1)] = char
+            if DEBUG_LEVEL > 0:
+                print "Player %d is %s!" % (player + 1, char)
+
+    def sort_characters(self, characters):
+        """Sorting algorithm which places priority on "top left" players"""
+        ordered = list()
+        upper = np.max(characters.values()).astype(float)
+        for char in characters:
+            loc_normed = characters[char] / upper
+            rank = 10 * loc_normed[0] + 100 * loc_normed[1]
+            ordered.append((char, rank))
+        ordered = sorted(ordered, key=lambda x: x[1])
+        return ordered
 
 
 class StartRace(Detector):
@@ -232,16 +249,15 @@ class EndRace(Detector):
         self.detector_states['EndRace']   = False
         self.detector_states['StartRace'] = True
         self.detector_states['Characters'] = True
-        if DEBUG_LEVEL > 0:
+        if DEBUG_LEVEL > 1:
             print self.detector_states
         # Populate dictionary with race duration
-        self.race_vars.race['race_duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time'])
+        self.race_vars.race['duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time'])
         if DEBUG_LEVEL == 0:
             database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars.race['race_duration'])
         else:
             print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.race_vars.race['race_duration'])
             cv.waitKey()
-
 
 
 class Engine():
@@ -261,7 +277,7 @@ class Engine():
 
         #DEBUG
         self.toggle = 1
-        print '[Engine]: initialization complete.'
+        print "[%s] initialization complete." % (self.__class__.__name__)
 
     def setup_processes(self, num, regions):
         """Generates child processes"""
@@ -280,23 +296,37 @@ class Engine():
     def process(self):
         """Loops through video source, feeding child processes new data"""
         frame_count = 0
-        while self.frame is not None:
-            for i in xrange(parallel.BUFFER_LENGTH):
-                offset = i * self.frame.size;
-                self.manager.image[offset : offset + self.frame.size] = self.frame.ravel()
-                self.ret, self.frame = self.capture.read()
-                if self.frame is None:
-                    break # Go to detect() and finally to cleanup()
-                if DEBUG_LEVEL > 0:
-                    cv.imshow(self.name, self.frame)
-                    frame_count += 1
-                    key = cv.waitKey(self.toggle)
-                    if key is 27:
-                        return
-                    elif key is 32:
-                        self.toggle ^= 1
-            self.manager.detect()
-            self.barrier.wait()
+        size = self.frame.size
+        while True:
+            try:
+                for i in range(parallel.BUFFER_LENGTH):
+                    offset = i * size;
+                    self.manager.image[offset : offset + size] = self.frame.ravel()
+                    self.ret, self.frame = self.capture.read()
+                    if not self.ret:
+                        self.clear_buffer(offset=offset + size + 1)
+                        raise StopIteration
+                    if DEBUG_LEVEL > 0:
+                        cv.imshow(self.name, self.frame)
+                        frame_count += 1
+                        key = cv.waitKey(self.toggle)
+                        if key is 27:
+                            return
+                        elif key is 32:
+                            self.toggle ^= 1
+                self.manager.detect()
+                self.barrier.wait()
+            except StopIteration:
+                # Handle dangling frames in buffer and return gracefully
+                self.manager.detect()
+                return
+
+    def clear_buffer(self, offset):
+        """Cleans up the rest of the buffer
+
+        Needed so that Workers don't process same data many times
+        """
+        self.manager.image[offset:] = 0
 
     def cleanup(self):
         """Frees memory, alerts child processes to finish"""

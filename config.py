@@ -5,7 +5,7 @@
     = 3     More verbose        This level will most likely just be used in development
                                 of features with unknown results
 """
-DEBUG_LEVEL = 0
+DEBUG_LEVEL = 1
 
 class Race(object):
     """Race state variables
@@ -17,15 +17,15 @@ class Race(object):
     """
     def __init__(self):
         """Sets the race's initial state"""
-        self.race = {'num_players':   0,
-            'p1':      0,
-            'p2':      0,
-            'p3':      0,
-            'p4':      0,
-            'session_id':    0,
-            'start_time':    0,
-            'race_duration': 0,
-            'frame_rate':    0,}
+        self.race = {'session_id':    0,
+                     'num_players':   0,
+                     'p1':      "",
+                     'p2':      "",
+                     'p3':      "",
+                     'p4':      "",
+                     'start_time':    0,
+                     'duration': 0,
+                     'frame_rate':    0,}
         self.is_started = False
         self.player_boxes = list()
         self.is_black = False
@@ -34,12 +34,12 @@ class Race(object):
         """ Resets race state dictionary (NOT the rest!)"""
         self.race.is_started = False
         self.race['start_time'] = 0
-        self.race['race_duration'] = 0
+        self.race['duration'] = 0
         self.race['num_players'] = 0
-        self.race['p1'] = 0
-        self.race['p2'] = 0
-        self.race['p3'] = 0
-        self.race['p4'] = 0
+        self.race['p1'] = ""
+        self.race['p2'] = ""
+        self.race['p3'] = ""
+        self.race['p4'] = ""
 
 #TODO: Does this need to be included here?
 detector_states = dict()

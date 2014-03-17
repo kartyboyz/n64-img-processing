@@ -57,7 +57,7 @@ class Worker(multiprocessing.Process):
                 break
             self.event.wait() # Blocking - trigger MUST be set
             buff = np.frombuffer(self.shared.get_obj(), dtype=ctypes.c_ubyte)
-            for i in xrange(BUFFER_LENGTH):
+            for i in range(BUFFER_LENGTH):
                 offset = i * self.size
                 cur_el = buff[offset : offset + self.size]
                 frame =cur_el.reshape(self.shape[0], self.shape[1], self.shape[2])
@@ -70,7 +70,7 @@ class Worker(multiprocessing.Process):
                         self.bounds = self.race_vars.player_boxes[0]
                 region = frame[self.bounds[1][0] : self.bounds[1][1],
                                self.bounds[0][0] : self.bounds[0][1]]
-                if DEBUG_LEVEL > 1:
+                if DEBUG_LEVEL > 0:
                     # This is just for fancy visual "animation" :-p
                     dbg = region.copy()
                     cv.putText(dbg, "Processing %i" % (i), (10, 40),
@@ -113,8 +113,8 @@ class ProcessManager(object):
 
         # Object instantiation
         #CLEAN
-        self.triggers = [multiprocessing.Event() for _ in xrange(4)]
-        self.locks = [multiprocessing.Lock() for _ in xrange(4)]
+        self.triggers = [multiprocessing.Event() for _ in range(4)]
+        self.locks = [multiprocessing.Lock() for _ in range(4)]
         shape = video_source.shape
         self.workers = [Worker(shared_memory=self.shared,
                                barrier=barrier,
@@ -122,7 +122,7 @@ class ProcessManager(object):
                                shape=shape,
                                event=self.triggers[i],
                                lock=self.locks[i],
-                               variables=variables) for i in xrange(num)]
+                               variables=variables) for i in range(num)]
 
     def set_detectors(self, detect_list, detector_states):
         """Wrapper for Workers"""

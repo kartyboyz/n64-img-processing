@@ -168,18 +168,15 @@ class RingBuffer(deque):
         return list(self)
 
 
-def find_unique(container, index=None):
+def find_unique(container, index):
     '''
-    Generic function for determining all unique elements in a container.
-    If 'index' is specified, it compares that index of each element.
+    Collects all unique elements in a container, biased according to
+    'index.' Note that it's not very generic: it stores the index as the
+    key and the following index as the value
     '''
-    results = list()
+    results = dict()
     if index is not None:
         for thing in container:
-            if thing[index] not in results:
-                results.append(thing)
-    else:
-        for thing in container:
-            if thing not in results:
-                results.append(thing)
+            if not results.has_key(thing[index]):
+                results[thing[index]] = thing[index + 1]
     return results
