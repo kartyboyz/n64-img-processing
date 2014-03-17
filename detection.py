@@ -76,7 +76,7 @@ class Detector(object):
         """ Compares pre-loaded masks to current frame"""
         for mask in self.masks:
             if frame.shape != self.default_shape:
-                scaled_mask = (utility.resize(frame,
+                scaled_mask = (utility.scaleImage(frame,
                                                   mask[0],
                                                   self.default_shape), mask[1])
             else:
