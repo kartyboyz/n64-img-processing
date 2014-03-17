@@ -17,6 +17,7 @@
       subprocess-level through wrapper functions. It's not necessarily bad,
       but it seems pretty redundant
     * We still don't deal with zoomed-out Lakitu for StartRace!
+    * Talk to Michael about new put_race fields
 """
 
 
@@ -203,6 +204,7 @@ class Characters(Detector):
             self.race_vars.race["p" + str(player + 1)] = char
             if DEBUG_LEVEL > 0:
                 print "Player %d is %s!" % (player + 1, char)
+        self.race_vars.race_vars['num_players'] = len(ordered)
 
     def sort_characters(self, characters):
         """Sorting algorithm which places priority on "top left" players"""
@@ -254,7 +256,12 @@ class EndRace(Detector):
         # Populate dictionary with race duration
         self.race_vars.race['duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time'])
         if DEBUG_LEVEL == 0:
-            database.put_race(self.session_id, self.race_vars.race['start_time'], self.race_vars.race['race_duration'])
+            try:
+                database.put_race(self.race_vars)
+            except: #TODO Figure out exact exceptions
+                # Database error, dump to filesystem
+                self.race_vars.save("dbfail_session%i.dump" % (self.race_vars.race['session_id']))
+                #TODO Decide if we ever want to be able to recover dump files
         else:
             print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.race_vars.race['race_duration'])
             cv.waitKey()

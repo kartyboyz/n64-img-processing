@@ -1,3 +1,5 @@
+import csv
+
 """DEBUG_LEVEL :Describes intensity of feedback from video processing
     = 0     No feedback
     = 1     Minor feedback      Displaying current frame, print object detections, etc
@@ -40,6 +42,17 @@ class Race(object):
         self.race['p2'] = ""
         self.race['p3'] = ""
         self.race['p4'] = ""
+
+    def save(filename):
+        """Saves dictionary to specified file
+
+        Should be used in "emergencies" due to DB failure
+        """
+        f = open(filename, "wb")
+        w = csv.writer(f)
+        for key, val in self.race.items():
+            w.writerow([key, val])
+        f.close()
 
 #TODO: Does this need to be included here?
 detector_states = dict()
