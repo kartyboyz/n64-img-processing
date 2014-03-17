@@ -13,7 +13,7 @@ from config import DEBUG_LEVEL
 # Number of frames to be passed to subprocesses
 #    We can vary this to change how much memory is being used
 #    MEM_USAGE = BUFFER_LENGTH * sizeof(array_element) * frame.size
-BUFFER_LENGTH = 200
+BUFFER_LENGTH = 400
 
 
 class Worker(multiprocessing.Process):
@@ -64,7 +64,7 @@ class Worker(multiprocessing.Process):
                 #CLEAN This is poorly written and uglay
                 if self.phase is 0:
                     if self.count is 1: # First , initialize to full size
-                        self.bounds = [(0, self.shape[0]), (0, self.shape[1])]
+                        self.bounds = [(0, self.shape[1]), (0, self.shape[0])]
                     else:
                         # Update our bounds from BoxExtractor
                         self.bounds = self.race_vars.player_boxes[0]

@@ -18,6 +18,7 @@
       but it seems pretty redundant
     * We still don't deal with zoomed-out Lakitu for StartRace!
     * Talk to Michael about new put_race fields
+    * Consider increasing buffer length for potential speedup?
 """
 
 
@@ -150,9 +151,22 @@ class BoxExtractor(Detector):
             self.race_vars.player_boxes[:] = []
             for coord in itertools.product(points[0], points[1]):
                 self.race_vars.player_boxes.append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
+            self.race_vars.player_boxes = self.sort_boxes(self.race_vars.player_boxes)
         else:
             # Completely black frame
             self.race_vars.player_boxes.append([(0, 0), (cur_frame.shape[0], cur_frame.shape[1])])
+
+    def sort_boxes(self, boxes):
+        """Sorting algorithm that places priority on "top left" boxes"""
+        ordered = list()
+        upper = np.max(boxes).astype(float)
+        for box in boxes:
+            box_normed = np.divide(box, upper)
+            rank = np.sum(100 * box_normed[1]) + np.sum(10 * box_normed[0])
+            ordered.append((box, rank))
+        ordered = sorted(ordered, key=lambda x:x[1])
+        result = [el[0] for el in ordered]
+        return result
 
 
 class Items(Detector):
@@ -204,7 +218,7 @@ class Characters(Detector):
             self.race_vars.race["p" + str(player + 1)] = char
             if DEBUG_LEVEL > 0:
                 print "Player %d is %s!" % (player + 1, char)
-        self.race_vars.race_vars['num_players'] = len(ordered)
+        self.race_vars.race['num_players'] = len(ordered)
 
     def sort_characters(self, characters):
         """Sorting algorithm which places priority on "top left" players"""
@@ -224,11 +238,13 @@ class StartRace(Detector):
             self.detector_states['StartRace'] = False
             self.detector_states['EndRace']   = True
             self.detector_states['Characters'] = False
+            self.detector_states['BoxExtractor'] = False
+            # Lock in player boxes (should be sorted alreadY)
+            self.race_vars.race['player_boxes'] = self.race_vars.player_boxes
             # Populate dictionary with start time
             self.race_vars.race['start_time'] = np.floor(cur_count / self.race_vars.race['frame_rate']) - 6
             if DEBUG_LEVEL > 0:
                 print '[StartRace]: Race started at ' + str(self.race_vars.race['start_time']) + ' seconds.'
-                cv.waitKey()
 
 
 class EndRace(Detector):
@@ -251,6 +267,7 @@ class EndRace(Detector):
         self.detector_states['EndRace']   = False
         self.detector_states['StartRace'] = True
         self.detector_states['Characters'] = True
+        self.detector_states['BoxExtractor'] = True
         if DEBUG_LEVEL > 1:
             print self.detector_states
         # Populate dictionary with race duration
@@ -263,8 +280,7 @@ class EndRace(Detector):
                 self.race_vars.save("dbfail_session%i.dump" % (self.race_vars.race['session_id']))
                 #TODO Decide if we ever want to be able to recover dump files
         else:
-            print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.race_vars.race['race_duration'])
-            cv.waitKey()
+            print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.race_vars.race['duration'])
 
 
 class Engine():
