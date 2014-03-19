@@ -148,12 +148,12 @@ class RingBuffer(deque):
         self.__max_size = max_size
 
     def append(self, x):
-        deque.append(self, x)
         if len(self) == self.__max_size:
             self.popleft()
+        deque.append(self, x)
 
     def all_same(self):
-        if self.count(self[0]) is (self.__max_size-1):
+        if self.count(self[0]) is (self.__max_size):
             return True;
         else:
             return False;
@@ -166,6 +166,9 @@ class RingBuffer(deque):
 
     def tolist(self):
         return list(self)
+
+    def fuck(self):
+        print self.__max_size
 
 
 def find_unique(container, index):
