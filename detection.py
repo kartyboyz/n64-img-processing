@@ -169,6 +169,112 @@ class BoxExtractor(Detector):
         return result
 
 
+class FinishRace(Detector):
+    def process(self, frame, cur_count):
+        # First smooth out the image with a Gaussian blur
+        if frame != None:
+            frame = cv.GaussianBlur(frame, (3, 3), 1)
+            # Convert to HSV and then threshold in range for yellow
+            binary = cv.cvtColor(frame , cv.COLOR_BGR2HSV)
+            binary = cv.inRange(binary, (8, 185, 255), (40, 255, 255))
+            # Blur again to smooth out thresholded frame
+            binary = cv.GaussianBlur(binary, (3, 3), 1)
+            for mask in self.masks:
+                if frame.shape != self.default_shape:
+                    scaled_mask = (cv.cvtColor(utility.resize(frame, mask[0], self.default_shape), cv.COLOR_BGR2GRAY), mask[1])
+                else:
+                    scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
+                # Convert to grayscale
+                #scaled_mask = (cv.cvtColor(scaled_mask[0], cv.COLOR_BGR2GRAY), scaled_mask[1])
+                #print scaled_mask[0].shape, binary.shape
+                distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                minval, _, minloc, _ = cv.minMaxLoc(distances)
+                if minval <= self.threshold:
+                    print scaled_mask[1] + '-->' + str(minval)
+                    self.handle(frame, scaled_mask[1], cur_count)
+                if DEBUG_LEVEL > 0:
+                    cv.imshow('thresh', binary)
+                    cv.imshow('mask', scaled_mask[0])
+                    cv.waitKey(30)
+
+    def handle(self, frame, mask, cur_count):
+        # TODO/xxx: do something
+        print 'handled'
+
+
+class PositionChange(Detector):
+    def process(self, frame, cur_count):
+        player = 0
+        # First smooth out the image with a Gaussian blur
+        if frame != None:
+            frame = cv.GaussianBlur(frame, (5, 5), 1)
+            # Convert to HSV and then threshold in range for yellow
+            gray = cv.cvtColor(frame , cv.COLOR_BGR2HSV)
+            first_binary = cv.inRange(gray, (27, 137, 255), (30, 230, 255)) # Works for 1st 4p and 2nd 3p
+            second_binary = cv.inRange(gray, (22, 155, 255), (28, 240, 255)) # Works for 2nd 4p
+            third_binary = cv.inRange(gray, (13, 129, 218), (25, 251, 255)) # Works on Bowser's castle
+            fourth_binary = cv.inRange(gray, (6, 137, 225), (10, 225, 255))
+            #binary = cv.inRange(binary, (9, 172, 255), (30, 225, 255)) # Works for 1st and 2nd NOT IN ALL VIDEOS
+            # Blur again to smooth out thresholded frame
+            first_binary = cv.GaussianBlur(first_binary, (5, 5), 1)
+            second_binary = cv.GaussianBlur(second_binary, (5, 5), 1)
+            third_binary = cv.GaussianBlur(third_binary, (5, 5), 1)
+            fourth_binary = cv.GaussianBlur(fourth_binary, (5, 5), 1)
+            for mask in self.masks:
+                if frame.shape != self.default_shape:
+                    scaled_mask = (cv.GaussianBlur(cv.cvtColor(utility.resize(frame,mask[0], self.default_shape), 
+                        cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                else:
+                    scaled_mask = (cv.GaussianBlur(cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                # Convert to grayscale
+                #scaled_mask = (cv.cvtColor(scaled_mask[0], cv.COLOR_BGR2GRAY), scaled_mask[1])
+                #print scaled_mask[0].shape, binary.shape
+                first_distances = cv.matchTemplate(first_binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                second_distaces = cv.matchTemplate(second_binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                third_distances = cv.matchTemplate(third_binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                fourth_distances = cv.matchTemplate(fourth_binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                first_minval, _, first_minloc, _ = cv.minMaxLoc(first_distances)
+                second_minval, _, second_minloc, _ = cv.minMaxLoc(second_distaces)
+                third_minval, _, third_minloc, _ = cv.minMaxLoc(third_distances)
+                fourth_minval, _, fourth_minloc, _ = cv.minMaxLoc(fourth_distances)
+                minval = min(first_minval, second_minval, third_minval, fourth_minval)
+                if minval == first_minval:
+                    minloc = first_minloc
+                elif minval == second_minval:
+                    minloc = second_minloc
+                elif minval == third_minval:
+                    minloc = third_minloc
+                else:
+                    minloc = fourth_minloc
+
+                print minval
+                if minval <= self.threshold:
+                    print scaled_mask[1] + '-->' + str(minval)
+                    self.handle(frame, player, scaled_mask[1], cur_count)
+                if DEBUG_LEVEL > 0:
+                    cv.imshow('fthresh', first_binary)
+                    cv.imshow('sthresh', second_binary)
+                    cv.imshow('tthresh', third_binary)
+                    cv.imshow('fourth', fourth_binary)
+                    cv.imshow('mask', scaled_mask[0])
+                    cv.waitKey(1)
+
+    def handle(self, frame, player, mask, cur_count):
+        # Append the mask '#_place.png' to the ring buffer
+        self.buffer.append(mask)
+        # If this is the first place that is given, store it
+        if len(self.buffer) == 1:
+            # Update state variables
+            print 'First occurence!'
+        # Check if the found mask is different than the previous one
+        elif mask.split('_')[0] != self.buffer[len(self.buffer) - 2].split('_')[0]:
+            # Update state variables
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s went from %s to %s" % (self.__class__.__name__, player, 
+                    self.buffer[len(self.buffer) - 2], self.buffer[len(self.buffer) - 1])
+
+
+
 class Items(Detector):
     """Detector for MK64 items"""
     def handle(self, frame, player, mask, cur_count, location):
