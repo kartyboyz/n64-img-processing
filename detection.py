@@ -169,6 +169,38 @@ class BoxExtractor(Detector):
         return result
 
 
+class Shortcut(Detector):
+    """Faux-detector for determining if frame is black
+
+    Most of the functions are overriding the superclass.
+    Updates race variables that race has stopped if above is true
+    """
+    def __init__(self, race_vars, states):
+        self.race_vars = race_vars
+        self.detector_states = states
+
+    def detect(self, frame, cur_count):
+        if self.race_vars.is_started:
+            self.process(frame, cur_count)
+
+    def process(self, frame, cur_count):
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        gray = cv.GaussianBlur(gray, (5,5), 1)
+        _, gray = cv.threshold(gray, 80, 255, cv.THRESH_BINARY)
+        black_count = float(np.sum(gray)) / float(gray.size)
+        # If at least 80% of the frame is true black, race has stopped
+        if black_count <= float(20):
+            print black_count
+            self.handle(frame, cur_count)
+        if DEBUG_LEVEL > 0:
+            cv.imshow('thresh', gray)
+            cv.waitKey(1)
+
+    def handle(self, frame, cur_count):
+        print "[%s] Shortcut detected" % (self.__class__.__name__)
+
+
+
 class FinishRace(Detector):
     def process(self, frame, cur_count):
         player = 0
