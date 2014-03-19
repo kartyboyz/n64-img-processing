@@ -126,12 +126,37 @@ def pixelate(image, resolution):
     return rv, display
 
 
-def resize(frame, mask, frame_shape_default):
-    default = tuple([float(cast_me) for cast_me in iter(frame_shape_default)])
-    ratios = np.divide(default, frame.shape)
-    new_size = np.multiply(mask.shape, ratios).astype(int)
-    scaled = cv.resize(mask, (new_size[0], new_size[1]))
-    return scaled
+
+def scaleImage(frame, mask, frame_shape_default):
+    '''
+    Generates a new image mask with dimensions scaled to the size of the video frame.
+    This works by calculating the percent into the frame both (x1,y1) and (x2,y2) occur.
+    (x1,y1) is the top left corner of the mask and (x2,y2) is the bottom right corner of the mask.
+    Then compute the new x y pairs based on the calculated percentages and pass results onto cv.resize.
+    Resizing operation is done via bilinear interpolation.
+    '''
+
+    # Get the dimensions of the frame and the shape of the mask
+    h_frame, w_frame, _ = frame.shape
+    h_mask, w_mask, _ = mask.shape
+    coords = ((0,0),(w_mask,h_mask))
+
+    x1_percentage = 0.0
+    y1_percentage = 0.0
+    x2_percentage = coords[1][0] / float(frame_shape_default[1]) * 100.0
+    y2_percentage = coords[1][1] / float(frame_shape_default[0]) * 100.0
+
+    newx1 = 0
+    newy1 = 0
+    newx2 = int(np.ceil((x2_percentage * float(w_frame)) / 100.0))
+    newy2 = int(np.ceil((y2_percentage * float(h_frame)) / 100.0))
+
+    # Resize the image
+    fx = float(newx2) / float(w_mask)
+    fy = float(newy2) / float(h_mask)
+    scaled_image = cv.resize(mask, (newx2,newy2), fx, fy, cv.INTER_LINEAR)
+    return scaled_image
+
 
 def in_range(number, low, high):
     """Determines if a number is bounded by low, high"""
