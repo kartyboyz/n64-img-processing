@@ -1,3 +1,4 @@
+import copy
 import ctypes
 import multiprocessing
 
@@ -5,6 +6,7 @@ import cv2 as cv
 import numpy as np
 
 import config
+import detection
 import utility
 
 from config import DEBUG_LEVEL
@@ -32,17 +34,21 @@ class Worker(multiprocessing.Process):
         self.done = multiprocessing.Event()
         self.count = 1
         self.detectors = list()
-        self.detector_states = None # Will be populated once Detectors are added
+        self.detector_states = dict() # Will be populated once Detectors are added
         if bounds is None:
             self.phase = 0
         else:
             self.phase = 1
+        #DEBUG
+        self.toggle = 1
 
-    def set_detectors(self, detector_list, detector_states):
+    def set_detectors(self, detector_list):
         """Wrapper for adding more detectors"""
-        self.detector_states = detector_states
         for name in detector_list:
+            self.detector_states[name.__class__.__name__] = True
             self.detectors.append(name)
+        for d in self.detectors:
+            d.set_states(self.detector_states)
 
     def run(self):
         """Waits for & consumes frame buffer, then applies Detectors on each frame
@@ -77,13 +83,17 @@ class Worker(multiprocessing.Process):
                             cv.FONT_HERSHEY_SIMPLEX, 1,
                             (50,255, 50), 2, 1)
                     cv.imshow("[%s]" % self.name, dbg)
-                    cv.waitKey(1)
+                    key = cv.waitKey(self.toggle)
+                    if key is 27:
+                        return
+                    elif key is 32:
+                        self.toggle ^= 1
 
                 # NOTE: This section is our current bottleneck.
                 # Unfortunately it's a pretty big one, and it's due to OpenCV's matchTemplate()
                 for d in self.detectors:
                     if d.is_active():
-                        if d.name() is 'BoxExtractor': #CLEAN This is gross
+                        if isinstance(d, detection.BoxExtractor):
                             d.detect(frame, self.count)
                         else:
                             d.detect(region, self.count)
@@ -94,7 +104,6 @@ class Worker(multiprocessing.Process):
             self.event.clear()
             self.barrier.wait()
         print '[%s] Exiting' % self.name
-
 
 class ProcessManager(object):
     """Handles subprocesses & their shared memory"""
@@ -124,10 +133,10 @@ class ProcessManager(object):
                                lock=self.locks[i],
                                variables=variables) for i in range(num)]
 
-    def set_detectors(self, detect_list, detector_states):
+    def set_detectors(self, detect_list):
         """Wrapper for Workers"""
         for worker in self.workers:
-            worker.set_detectors(detect_list, detector_states)
+            worker.set_detectors(detect_list)
 
     def start_workers(self):
         for worker in self.workers:

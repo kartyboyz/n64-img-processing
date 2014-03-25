@@ -42,7 +42,7 @@ from config import DEBUG_LEVEL
 
 class Detector(object):
     """Super (and abstract) class for all detectors, written specifically for MK64 events """
-    def __init__(self, masks_dir, freq, threshold, default_shape, race_vars, states, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, race_vars, buf_len=None):
         if type(self) is Detector:
             raise Exception("<Detector> should be subclassed.")
         self.masks = [(cv.imread(masks_dir+name), name)
@@ -51,9 +51,9 @@ class Detector(object):
         self.threshold = threshold
         self.default_shape = default_shape
         self.race_vars = race_vars
-        self.detector_states = states
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
+        self.detector_states = None #To be filled in by setter
 
     def name(self):
         return self.__class__.__name__
@@ -67,6 +67,9 @@ class Detector(object):
     def deactivate(self):
         self.detector_states[self.name()] = False
 
+    def set_states(self, states):
+        self.detector_states = states
+
     def detect(self, frame, cur_count):
         """ Determines whether and how to process current frame"""
         if cur_count % self.freq is 0:
@@ -74,6 +77,8 @@ class Detector(object):
 
     def process(self, frame, cur_count):
         """ Compares pre-loaded masks to current frame"""
+        best_val = 1
+        best_mask = None
         for mask in self.masks:
             if frame.shape != self.default_shape:
                 scaled_mask = (utility.scaleImage(frame,
@@ -83,11 +88,14 @@ class Detector(object):
                 scaled_mask = mask
             distances = cv.matchTemplate(frame, mask[0], cv.TM_SQDIFF_NORMED)
             minval, _, minloc, _ = cv.minMaxLoc(distances)
-            if minval <= self.threshold:
-                player = 0 #TODO: Remove this shit
-                self.handle(frame, player, mask, cur_count, minloc)
-                if DEBUG_LEVEL > 1:
-                    print "Found %s :-)" % (mask[1])
+            if minval <= self.threshold and minval < best_val:
+                best_val = minval
+                best_mask = mask
+        player = 0 #TODO: Remove this shit
+        if best_mask is not None:
+            self.handle(frame, player, best_mask, cur_count, minloc)
+            if DEBUG_LEVEL > 1:
+                print "Found %s :-)" % (mask[1])
 
     def handle(self, frame, player, mask, cur_count, location):
         # Detectors should be subclassed
@@ -100,9 +108,8 @@ class BlackFrame(Detector):
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
-    def __init__(self, race_vars, states):
+    def __init__(self, race_vars):
         self.race_vars = race_vars
-        self.detector_states = states
 
     def detect(self, frame, cur_count):
         self.race_vars.is_black = False
@@ -123,9 +130,8 @@ class BlackFrame(Detector):
 
 
 class BoxExtractor(Detector):
-    def __init__(self, race_vars, states):
+    def __init__(self, race_vars):
         self.race_vars = race_vars
-        self.detector_states = states
 
     def detect(self, cur_frame, frame_cnt):
         OFFSET = 10
@@ -141,20 +147,21 @@ class BoxExtractor(Detector):
             projection *= 255/(projection.max() + 1)
             black_lines = np.where(projection <= 80)[0] - OFFSET + 1
             clumps =  np.split(black_lines, np.where(np.diff(black_lines) != 1)[0]+1)
+            black_lines = np.where(projection <= 25)[0] - OFFSET + 1
+            clumps =  np.split(black_lines, np.where(np.diff(black_lines) != 1)[0] + 1)
             coords = [(clumps[i][-1], clumps[i+1][0]) for i in range(len(clumps) - 1)]
             filtered_coords = [coords[i] for i in np.where(np.diff(coords) > 125)[0]]
             points[axis] = filtered_coords
 
         if utility.in_range(len(points[0]), 1, 2) and \
            utility.in_range(len(points[1]), 1, 2):
-            #TODO Fix permutations to reflect player number
             self.race_vars.player_boxes[:] = []
             for coord in itertools.product(points[0], points[1]):
                 self.race_vars.player_boxes.append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
             self.race_vars.player_boxes = self.sort_boxes(self.race_vars.player_boxes)
         else:
             # Completely black frame
-            self.race_vars.player_boxes.append([(0, 0), (cur_frame.shape[0], cur_frame.shape[1])])
+            self.race_vars.player_boxes.append([(0, cur_frame.shape[1]), (0, cur_frame.shape[0])])
 
     def sort_boxes(self, boxes):
         """Sorting algorithm that places priority on "top left" boxes"""
@@ -291,9 +298,9 @@ class Items(Detector):
 
 
 class Characters(Detector):
-    def __init__(self, masks_dir, freq, threshold, default_shape, race_vars, states, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, race_vars, buf_len=None):
         self.waiting_black = False
-        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, race_vars, states, buf_len)
+        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, race_vars, buf_len)
 
     def detect(self, frame, cur_count):
         if self.race_vars.is_black:
@@ -346,6 +353,7 @@ class StartRace(Detector):
             self.detector_states['EndRace']   = True
             self.detector_states['Characters'] = False
             self.detector_states['BoxExtractor'] = False
+            self.detector_states['Map'] = False
             # Lock in player boxes (should be sorted alreadY)
             self.race_vars.race['player_boxes'] = self.race_vars.player_boxes
             # Populate dictionary with start time
@@ -355,9 +363,8 @@ class StartRace(Detector):
 
 
 class EndRace(Detector):
-    def __init__(self, race_vars, states, session_id):
+    def __init__(self, race_vars, session_id):
         self.race_vars = race_vars
-        self.detector_states = states
         self.session_id = session_id
 
     def detect(self, frame, cur_count):
@@ -370,11 +377,14 @@ class EndRace(Detector):
 
     def handle(self, cur_count):
         self.race_vars.is_started = False
+        #TODO We could simplify this to make it cleaner
         # On end race, deactivate EndRaceDetector, activate StartRaceDetector and CharDetector
         self.detector_states['EndRace']   = False
         self.detector_states['StartRace'] = True
         self.detector_states['Characters'] = True
         self.detector_states['BoxExtractor'] = True
+        self.detector_states['Map']   = True
+
         if DEBUG_LEVEL > 1:
             print self.detector_states
         # Populate dictionary with race duration
@@ -390,17 +400,24 @@ class EndRace(Detector):
             print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.race_vars.race['duration'])
 
 
+class Map(Detector):
+    """Determines which map is being played"""
+    def handle(self, frame, player, mask, cur_count, location):
+        self.detector_states[self.name()] = False
+        if DEBUG_LEVEL > 1:
+            print 'Map is: ' + mask[1]
+            cv.waitKey()
+        # Update JSON
+
 class Engine():
     """Driving module that feeds Workers video frames"""
-    def __init__(self, race_vars, states, video_source):
+    def __init__(self, race_vars, video_source):
         self.name = video_source
         self.capture = cv.VideoCapture(video_source)
         self.ret, self.frame = self.capture.read()
 
         self.race_vars = race_vars
         self.race_vars.race['frame_rate'] = self.capture.get(cv1.CV_CAP_PROP_FPS)
-
-        self.detector_states = states
 
         self.barrier = None
         self.manager = None
@@ -418,9 +435,7 @@ class Engine():
         """Appends new detectors to Workers, wrapping the ProcessManager"""
         if self.barrier is None:
             raise RuntimeError("You need to call setup_processes() first")
-        for detector in detect_list:
-            self.detector_states[detector.name()] = True
-        self.manager.set_detectors(detect_list, self.detector_states)
+        self.manager.set_detectors(detect_list)
         self.manager.start_workers()
 
     def process(self):
