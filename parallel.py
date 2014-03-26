@@ -23,7 +23,9 @@ class Worker(multiprocessing.Process):
     def __init__(self, shared_memory, barrier, bounds, shape, event, lock, variables):
         #CLEAN Are all of these necessary?
         multiprocessing.Process.__init__(self)
-        self.race_vars = variables
+        print "MYVARS: "
+        print variables
+        self.variables = variables
         self.shared = shared_memory
         self.barrier = barrier
         self.bounds = bounds
@@ -43,12 +45,13 @@ class Worker(multiprocessing.Process):
         self.toggle = 1
 
     def set_detectors(self, detector_list):
-        """Wrapper for adding more detectors"""
-        for name in detector_list:
-            self.detector_states[name.__class__.__name__] = True
-            self.detectors.append(name)
+        """Wrapper for adding more detectors, setting their states & variables"""
+        for detector in detector_list:
+            self.detector_states[detector.name()] = True
+            self.detectors.append(detector)
         for d in self.detectors:
             d.set_states(self.detector_states)
+            d.set_variables(self.variables)
 
     def run(self):
         """Waits for & consumes frame buffer, then applies Detectors on each frame
@@ -73,7 +76,7 @@ class Worker(multiprocessing.Process):
                         self.bounds = [(0, self.shape[1]), (0, self.shape[0])]
                     else:
                         # Update our bounds from BoxExtractor
-                        self.bounds = self.race_vars.player_boxes[0]
+                        self.bounds = self.variables['player_boxes'][0]
                 region = frame[self.bounds[1][0] : self.bounds[1][1],
                                self.bounds[0][0] : self.bounds[0][1]]
                 if DEBUG_LEVEL > 0:
@@ -109,11 +112,12 @@ class ProcessManager(object):
     """Handles subprocesses & their shared memory"""
     def __init__(self, num, regions, video_source, barrier, variables):
         if regions is None:
-            # Assume it's a 'flag' for Phase 0, so just let it trickle down
+            # Assume it's a 'flag' for Phase 0, so just let it trickle down into Workers
             pass
         elif len(regions) != num:
-            raise Exception("[%s] Assertion failed: # regions != length(regions)" \
+            raise ValueError("[%s] Assertion failed: Array lengths do not match number specified" \
                             % (self.__class__.__name__))
+        
         self.barrier = barrier
         # Shared memory buffer setup
         self.shared = multiprocessing.Array(ctypes.c_ubyte,
@@ -131,7 +135,7 @@ class ProcessManager(object):
                                shape=shape,
                                event=self.triggers[i],
                                lock=self.locks[i],
-                               variables=variables) for i in range(num)]
+                               variables=variables[i]) for i in range(num)]
 
     def set_detectors(self, detect_list):
         """Wrapper for Workers"""

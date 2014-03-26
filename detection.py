@@ -42,7 +42,7 @@ from config import DEBUG_LEVEL
 
 class Detector(object):
     """Super (and abstract) class for all detectors, written specifically for MK64 events """
-    def __init__(self, masks_dir, freq, threshold, default_shape, race_vars, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
         if type(self) is Detector:
             raise Exception("<Detector> should be subclassed.")
         self.masks = [(cv.imread(masks_dir+name), name)
@@ -50,7 +50,7 @@ class Detector(object):
         self.freq = freq
         self.threshold = threshold
         self.default_shape = default_shape
-        self.race_vars = race_vars
+        self.variables = variables[0]
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
         self.detector_states = None #To be filled in by setter
@@ -69,6 +69,9 @@ class Detector(object):
 
     def set_states(self, states):
         self.detector_states = states
+
+    def set_variables(self, variables):
+        self.variables = variables
 
     def detect(self, frame, cur_count):
         """ Determines whether and how to process current frame"""
@@ -98,7 +101,7 @@ class Detector(object):
                 print "Found %s :-)" % (mask[1])
 
     def handle(self, frame, player, mask, cur_count, location):
-        # Detectors should be subclassed
+        # Detectors should be subclassed with their own handle() function
         raise NotImplementedError
 
 
@@ -108,11 +111,11 @@ class BlackFrame(Detector):
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
-    def __init__(self, race_vars):
-        self.race_vars = race_vars
+    def __init__(self, variables):
+        self.variables = variables
 
     def detect(self, frame, cur_count):
-        self.race_vars.is_black = False
+        self.variables['is_black'] = False
         self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
@@ -124,14 +127,14 @@ class BlackFrame(Detector):
             self.handle(frame, cur_count)
 
     def handle(self, frame, cur_count):
-        self.race_vars.is_black = True
+        self.variables['is_black'] = True
         if DEBUG_LEVEL > 1:
             print "[%s] Handled" % (self.name())
 
 
 class BoxExtractor(Detector):
-    def __init__(self, race_vars):
-        self.race_vars = race_vars
+    def __init__(self, variables):
+        self.variables = variables
 
     def detect(self, cur_frame, frame_cnt):
         OFFSET = 10
@@ -155,13 +158,13 @@ class BoxExtractor(Detector):
 
         if utility.in_range(len(points[0]), 1, 2) and \
            utility.in_range(len(points[1]), 1, 2):
-            self.race_vars.player_boxes[:] = []
+            self.variables['player_boxes'][:] = []
             for coord in itertools.product(points[0], points[1]):
-                self.race_vars.player_boxes.append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
-            self.race_vars.player_boxes = self.sort_boxes(self.race_vars.player_boxes)
+                self.variables['player_boxes'].append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
+            self.variables['player_boxes'] = self.sort_boxes(self.variables['player_boxes'])
         else:
             # Completely black frame
-            self.race_vars.player_boxes.append([(0, cur_frame.shape[1]), (0, cur_frame.shape[0])])
+            self.variables['player_boxes'].append([(0, cur_frame.shape[1]), (0, cur_frame.shape[0])])
 
     def sort_boxes(self, boxes):
         """Sorting algorithm that places priority on "top left" boxes"""
@@ -182,12 +185,12 @@ class Shortcut(Detector):
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
-    def __init__(self, race_vars, states):
-        self.race_vars = race_vars
+    def __init__(self, variables, states):
+        self.variables = variables
         self.detector_states = states
 
     def detect(self, frame, cur_count):
-        if self.race_vars.is_started:
+        if self.variables['is_started']:
             self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
@@ -298,17 +301,17 @@ class Items(Detector):
 
 
 class Characters(Detector):
-    def __init__(self, masks_dir, freq, threshold, default_shape, race_vars, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
         self.waiting_black = False
-        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, race_vars, buf_len)
+        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
 
     def detect(self, frame, cur_count):
-        if self.race_vars.is_black:
+        if self.variables['is_black']:
             if self.waiting_black:
                 self.store_players()
             else:
                 return
-        if not self.race_vars.is_started and (cur_count % self.freq is 0):
+        if not self.variables['is_started'] and (cur_count % self.freq == 0):
             height, width, _ = frame.shape
             focus_region = frame[np.ceil(height * 0.25) : np.ceil(height * 0.95),
                                  np.ceil(width * 0.25) : np.ceil(width * 0.75)]
@@ -329,10 +332,10 @@ class Characters(Detector):
         ordered = self.sort_characters(characters)
         for player, image in enumerate(ordered):
             char = image[0].rsplit(".", 1)[0]
-            self.race_vars.race["p" + str(player + 1)] = char
+            self.variables["p" + str(player + 1)] = char
             if DEBUG_LEVEL > 0:
                 print "Player %d is %s!" % (player + 1, char)
-        self.race_vars.race['num_players'] = len(ordered)
+        self.variables['num_players'] = len(ordered)
 
     def sort_characters(self, characters):
         """Sorting algorithm which places priority on "top left" players"""
@@ -348,77 +351,78 @@ class Characters(Detector):
 
 class StartRace(Detector):
     def handle(self, frame, player, mask, cur_count, location):
-            self.race_vars.is_started = True
+            self.variables['is_started'] = True
             self.detector_states['StartRace'] = False
             self.detector_states['EndRace']   = True
             self.detector_states['Characters'] = False
             self.detector_states['BoxExtractor'] = False
             self.detector_states['Map'] = False
             # Lock in player boxes (should be sorted alreadY)
-            self.race_vars.race['player_boxes'] = self.race_vars.player_boxes
+            self.variables['player_boxes'] = self.variables['player_boxes']
             # Populate dictionary with start time
-            self.race_vars.race['start_time'] = np.floor(cur_count / self.race_vars.race['frame_rate']) - 6
+            self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 6
             if DEBUG_LEVEL > 0:
-                print '[StartRace]: Race started at ' + str(self.race_vars.race['start_time']) + ' seconds.'
+                print '[StartRace]: Race started at ' + str(self.variables['start_time']) + ' seconds.'
 
 
 class EndRace(Detector):
-    def __init__(self, race_vars, session_id):
-        self.race_vars = race_vars
+    def __init__(self, variables, session_id):
+        self.variables = variables
         self.session_id = session_id
 
     def detect(self, frame, cur_count):
-        if self.race_vars.is_started:
-            if self.race_vars.is_black:
+        if self.variables['is_started']:
+            if self.variables['is_black']:
                 # Either rage-quit or clean race finish (we'll handle rage quits later)
                 self.handle(cur_count)
         else:
             self.detector_states[self.name()] = False
 
     def handle(self, cur_count):
-        self.race_vars.is_started = False
+        self.variables['is_started'] = False
         #TODO We could simplify this to make it cleaner
         # On end race, deactivate EndRaceDetector, activate StartRaceDetector and CharDetector
-        self.detector_states['EndRace']   = False
+        self.detector_states['EndRace'] = False
         self.detector_states['StartRace'] = True
         self.detector_states['Characters'] = True
         self.detector_states['BoxExtractor'] = True
-        self.detector_states['Map']   = True
+        self.detector_states['Map'] = True
 
         if DEBUG_LEVEL > 1:
             print self.detector_states
         # Populate dictionary with race duration
-        self.race_vars.race['duration'] = np.ceil((cur_count / self.race_vars.race['frame_rate']) - self.race_vars.race['start_time'])
+        self.variables['duration'] = np.ceil((cur_count / self.variables['frame_rate']) - self.variables['start_time'])
         if DEBUG_LEVEL == 0:
             try:
-                database.put_race(self.race_vars)
+                database.put_race(self.variables)
             except: #TODO Figure out exact exceptions
                 # Database error, dump to filesystem
-                self.race_vars.save("dbfail_session%i.dump" % (self.race_vars.race['session_id']))
+                self.variables.save("dbfail_session%i.dump" % (self.variables['session_id']))
                 #TODO Decide if we ever want to be able to recover dump files
         else:
-            print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.race_vars.race['duration'])
+            print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.variables['duration'])
 
-
+#TODO Fix map masks!!!!
 class Map(Detector):
     """Determines which map is being played"""
     def handle(self, frame, player, mask, cur_count, location):
         self.detector_states[self.name()] = False
-        if DEBUG_LEVEL > 1:
+        if DEBUG_LEVEL > 0:
             print 'Map is: ' + mask[1]
             cv.waitKey()
         # Update JSON
 
+
 class Engine():
     """Driving module that feeds Workers video frames"""
-    def __init__(self, race_vars, video_source):
+    def __init__(self, variables, video_source):
         self.name = video_source
         self.capture = cv.VideoCapture(video_source)
         self.ret, self.frame = self.capture.read()
 
-        self.race_vars = race_vars
-        self.race_vars.race['frame_rate'] = self.capture.get(cv1.CV_CAP_PROP_FPS)
-
+        for _ in range(len(variables)):
+            variables[0]['frame_rate'] = self.capture.get(cv1.CV_CAP_PROP_FPS)
+        self.variables = variables
         self.barrier = None
         self.manager = None
 
@@ -429,7 +433,7 @@ class Engine():
     def setup_processes(self, num, regions):
         """Generates child processes"""
         self.barrier = utility.Barrier(parties=(num+1))
-        self.manager = parallel.ProcessManager(num, regions, self.frame, self.barrier, self.race_vars)
+        self.manager = parallel.ProcessManager(num, regions, self.frame, self.barrier, self.variables)
 
     def add_detectors(self, detect_list):
         """Appends new detectors to Workers, wrapping the ProcessManager"""

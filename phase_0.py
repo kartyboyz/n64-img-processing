@@ -16,6 +16,8 @@ Required Detectors:
         Finds Lakitu who indicates the start of a race
     EndRace
         Wrapper around BlackFrame to determine the end of a race
+    Map
+        Evaluates which MK64 map is being played
 """
 
 import sys
@@ -26,45 +28,46 @@ import parallel
 
 from config import DEBUG_LEVEL
 
+
 def main(session_id, video_file):
     """Configuration Variables/Data Setup"""
-    VARIABLES = config.Race()
+    VARIABLES = [config.race]
 
     """Detector Setup"""
-    BLACK = detection.BlackFrame(race_vars=VARIABLES)
-    BOXES = detection.BoxExtractor(race_vars=VARIABLES)
+    BLACK = detection.BlackFrame(variables=VARIABLES)
+    BOXES = detection.BoxExtractor(variables=VARIABLES)
     ITEMS = detection.Items(masks_dir='./high_res_masks/item_masks/',
                             freq=1,
                             threshold=0.16,
                             default_shape=(237, 314, 3),
-                            race_vars=VARIABLES,
+                            variables=VARIABLES,
                             buf_len=8)
     #TODO Fix thresh. for CHARS
     CHARS = detection.Characters(masks_dir='./high_res_masks/char_masks/',
                                  freq=1,
                                  threshold=0.10,
                                  default_shape=(333, 318, 3),
-                                 race_vars=VARIABLES,
+                                 variables=VARIABLES,
                                  buf_len=8)
     START_RACE = detection.StartRace(masks_dir='./high_res_masks/start_masks/',
                                      freq=1,
                                      threshold=0.17,
                                      default_shape=(237, 314, 3),
-                                     race_vars=VARIABLES)
-    END_RACE = detection.EndRace(race_vars=VARIABLES,
+                                     variables=VARIABLES)
+    END_RACE = detection.EndRace(variables=VARIABLES,
                                  session_id=session_id)
     MAP = detection.Map(masks_dir='./high_res_masks/maps/',
                         freq=1,
                         threshold=0.16,
                         default_shape=(236, 324, 3),
-                        race_vars=VARIABLES)
+                        variables=VARIABLES)
 
     """Engine Setup"""
-    ENGINE = detection.Engine(race_vars=VARIABLES,
+    ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
     ENGINE.setup_processes(num=1,
                            regions=[None])
-    ENGINE.add_detectors([BLACK, BOXES, MAP, START_RACE, END_RACE])
+    ENGINE.add_detectors([BLACK, BOXES, CHARS, START_RACE, END_RACE])
 
     """Main"""
     ENGINE.process()
