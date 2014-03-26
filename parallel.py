@@ -98,7 +98,10 @@ class Worker(multiprocessing.Process):
                 # Unfortunately it's a pretty big one, and it's due to OpenCV's matchTemplate()
                 for d in self.detectors:
                     if d.is_active():
-                        if isinstance(d, detection.BoxExtractor):
+                        if isinstance(d, detection.BoxExtractor) or \
+                           isinstance(d, detection.BlackFrame) or \
+                           isinstance(d, detection.Characters) or \
+                           isinstance(d, detection.EndRace):
                             d.detect(frame, self.count)
                         else:
                             # TODO/xxx: FIX THIS SHIT

@@ -385,12 +385,12 @@ class Characters(Detector):
             height, width, _ = frame.shape
             focus_region = frame[np.ceil(height * 0.25) : np.ceil(height * 0.95),
                                  np.ceil(width * 0.25) : np.ceil(width * 0.75)]
-            self.process(focus_region, cur_count, player)
+            self.process(focus_region, cur_count, 0)
             if DEBUG_LEVEL > 1:
                 cv.imshow(self.name(), focus_region)
                 cv.waitKey(1)
 
-    def handle(self, frame, player, mask, cur_count, location):
+    def handle(self, frame, mask, cur_count, location):
         self.waiting_black = True
         self.buffer.append((mask[1], location))
 
