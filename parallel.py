@@ -23,8 +23,6 @@ class Worker(multiprocessing.Process):
     def __init__(self, shared_memory, barrier, bounds, shape, event, lock, variables):
         #CLEAN Are all of these necessary?
         multiprocessing.Process.__init__(self)
-        print "MYVARS: "
-        print variables
         self.variables = variables
         self.shared = shared_memory
         self.barrier = barrier
