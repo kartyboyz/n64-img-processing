@@ -1,5 +1,3 @@
-import csv
-
 """DEBUG_LEVEL :Describes intensity of feedback from video processing
     = 0     No feedback
     = 1     Minor feedback      Displaying current frame, print object detections, etc

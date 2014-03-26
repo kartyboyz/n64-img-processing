@@ -16,47 +16,56 @@ Required Detectors:
         Finds Lakitu who indicates the start of a race
     EndRace
         Wrapper around BlackFrame to determine the end of a race
-    Map
-        Evaluates which MK64 map is being played
 """
 
 import sys
-import detection
 
+import detection
 
 def main(session_id, video_file):
     """Configuration Variables/Data Setup"""
-    VARIABLES = [detection.config.race]
+    VARIABLES = [detection.config.player]
 
     """Detector Setup"""
     BLACK = detection.BlackFrame(variables=VARIABLES)
-    BOXES = detection.BoxExtractor(variables=VARIABLES)
     ITEMS = detection.Items(masks_dir='./high_res_masks/item_masks/',
                             freq=1,
                             threshold=0.16,
                             default_shape=(237, 314, 3),
                             variables=VARIABLES,
                             buf_len=8)
-    #TODO Fix thresh. for CHARS
-    CHARS = detection.Characters(masks_dir='./high_res_masks/char_masks/',
-                                 freq=1,
-                                 threshold=0.10,
-                                 default_shape=(333, 318, 3),
-                                 variables=VARIABLES,
-                                 buf_len=8)
-    START_RACE = detection.StartRace(masks_dir='./high_res_masks/start_masks/',
+    BEGIN_RACE = detection.BeginRace(masks_dir='./high_res_masks/start_masks/',
                                      freq=1,
-                                     threshold=0.17,
+                                     threshold=0.16,
                                      default_shape=(237, 314, 3),
                                      variables=VARIABLES)
-    END_RACE = detection.EndRace(variables=VARIABLES,
-                                 session_id=session_id)
+    FINISH_RACE = detection.FinishRace(masks_dir='./high_res_masks/finish_masks/',
+                                    freq=1,
+                                    threshold=0.16,
+                                    default_shape=(237,314,3),
+                                    variables=VARIABLES)
+    POSITION_CHANGE = detection.PositionChange(masks_dir='./high_res_masks/position_masks/',
+                                            freq=1,
+                                            threshold=0.16,
+                                            default_shape=(237,314,3),
+                                            variables=VARIABLES,
+                                            buf_len=2)
+    SHORTCUT = detection.Shortcut(variables=VARIABLES)
+    COLLISION = detection.Collisions(masks_dir='./high_res_masks/collisions/',
+                                    freq=1,
+                                    threshold=0.07,
+                                    default_shape=(237,314,3),
+                                    variables=VARIABLES)
+    LAP = detection.Laps(masks_dir='./high_res_masks/laps/',
+                                    freq=1,
+                                    threshold=0.02,
+                                    default_shape=(237,314,3),
+                                    variables=VARIABLES)
     """Engine Setup"""
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
-    ENGINE.setup_processes(num=1,
-                           regions=[None])
-    ENGINE.add_detectors([BLACK, BOXES, CHARS, START_RACE, END_RACE])
+    ENGINE.setup_processes(num=1, regions=[[(4, 316), (0, 238)]])
+    ENGINE.add_detectors([BLACK, BEGIN_RACE, FINISH_RACE])
 
     """Main"""
     ENGINE.process()
