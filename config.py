@@ -21,15 +21,12 @@ race = {
         'p4' : "",
         'is_started' : False,
         'is_black' : False,
+        'map' : "",
         'player_boxes' : list()
         }
 
 player = {
            'frame_rate' : -1,
            'place' : -1,
-           'lap' : -1,
-           'item' : None,
-           'in_collision' : False,
-           'in_shortcut' : False,
-         }
+           'lap' : -1}
 

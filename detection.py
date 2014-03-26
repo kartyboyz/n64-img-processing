@@ -58,14 +58,26 @@ class Detector(object):
     def name(self):
         return self.__class__.__name__
 
-    def is_active(self):
-        return self.detector_states[self.name()]
+    def is_active(self, detector_name=None):
+        if detector_name == None:
+            dname = self.name()
+        else:
+            dname = detector_name
+        return self.detector_states[dname]
 
-    def activate(self):
-        self.detector_states[self.name()] = True
+    def activate(self, detector_name=None):
+        if detector_name == None:
+            dname = self.name()
+        else:
+            dname = detector_name
+        self.detector_states[dname] = True
 
-    def deactivate(self):
-        self.detector_states[self.name()] = False
+    def deactivate(self, detector_name=None):
+        if detector_name == None:
+            dname = self.name()
+        else:
+            dname = detector_name
+        self.detector_states[dname] = False
 
     def set_race_events_list(self, race_events_list):
         self.race_events_list = race_events_list
@@ -110,10 +122,9 @@ class Detector(object):
                 best_mask = mask
         player = 0 #TODO: Remove this shit
         if best_mask is not None:
-            print 'HANDLING ' + self.name()
             self.handle(frame, player, best_mask, cur_count, minloc)
-            if DEBUG_LEVEL > 1:
-                print "Found %s :-) ------> %s" % (best_mask[1], best_val)
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
 
     def handle(self, frame, player, mask, cur_count, location):
         # Detectors should be subclassed with their own handle() function
@@ -121,8 +132,7 @@ class Detector(object):
 
 
 class BlackFrame(Detector):
-    """Faux-detector for determining if frame is black
-
+    """Faux-detector for determining if frame is black.
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
@@ -144,7 +154,7 @@ class BlackFrame(Detector):
     def handle(self, frame, cur_count):
         self.variables['is_black'] = True
         if DEBUG_LEVEL > 1:
-            print "[%s] Handled" % (self.name())
+            print "[%s]: Handled" % (self.name())
 
 
 class BoxExtractor(Detector):
@@ -199,9 +209,8 @@ class Shortcut(Detector):
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
-    def __init__(self, variables, states):
+    def __init__(self, variables):
         self.variables = variables
-        self.detector_states = states
 
     def detect(self, frame, cur_count, player):
         if self.variables['is_started']:
@@ -218,20 +227,22 @@ class Shortcut(Detector):
         if black_count <= float(20):
             print black_count
             self.handle(frame, player, cur_count)
-        if DEBUG_LEVEL > 0:
+        if DEBUG_LEVEL > 1:
             cv.imshow('thresh', gray)
             cv.waitKey(1)
 
     def handle(self, frame, player, cur_count):
-        print "[%s] Shortcut detected" % (self.__class__.__name__)
+        # Create event
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
         self.create_event(self.name(), self.name(), timestamp, player, 
             self.variables['lap'], sef.variables['place'], 'In shortcut cave')
+        if DEBUG_LEVEL > 0:
+            print "[%s]: Shortcut detected" % (self.name())
 
 
 
 class FinishRace(Detector):
-    """Detects the end of a race"""
+    """Detects the end of a race (phase_1)"""
     def process(self, frame, cur_count, player):
         player = 0
         # First smooth out the image with a Gaussian blur
@@ -250,19 +261,22 @@ class FinishRace(Detector):
                 distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                 minval, _, minloc, _ = cv.minMaxLoc(distances)
                 if minval <= self.threshold:
-                    print scaled_mask[1] + '--->' + str(minval)
-                    self.handle(frame, player, scaled_mask[1], cur_count, minloc)
-                if DEBUG_LEVEL > 0:
+                    print "Found %s :-) ------> %s" % (scaled_mask[1], minval)
+                    self.handle(frame, player, scaled_mask, cur_count, minloc)
+                if DEBUG_LEVEL > 1:
                     cv.imshow('thresh', binary)
-                    #cv.imshow('mask', scaled_mask[0])
                     cv.waitKey(1)
 
     def handle(self, frame, player, mask, cur_count, location):
-        # TODO/xxx: do something
-        print "[%s]: Player %s got %s place" % (self.__class__.__name__, player, mask)
+        # Deactivate the detector & PositionChange to be safe, and set the final place state variable
+        self.deactivate()
+        self.deactivate('PositionChange')
+        self.variables['place'] = int(mask[1].split('_')[0])
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
         self.create_event('Laps', self.name(), timestamp, player, self.variables['lap'], 
-            self.variables['place'], 'In shortcut cave')
+            self.variables['place'], "Player %s finishing place: %s" % (player, mask[1].split('_')[0]))
+        if DEBUG_LEVEL > 0:
+            print "[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1].split('_')[0])
 
 
 class PositionChange(Detector):
@@ -286,9 +300,10 @@ class PositionChange(Detector):
                 distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                 minval, _, minloc, _ = cv.minMaxLoc(distances)
                 if minval <= self.threshold:
-                    #print scaled_mask[1] + '-->' + str(minval)
+                    if DEBUG_LEVEL > 0:
+                        print "Found %s :-) ------> %s" % (scaled_mask[1], minval)
                     self.handle(frame, player, scaled_mask, cur_count, minloc)
-                if DEBUG_LEVEL > 0:
+                if DEBUG_LEVEL > 1:
                     cv.imshow('binary', binary)
                     cv.imshow('mask', scaled_mask[0])
                     cv.waitKey(1)
@@ -299,25 +314,27 @@ class PositionChange(Detector):
         # If this is the first place that is given, store it
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
         if len(self.buffer) == 1:
-            # Update state variables
-            print 'First occurence!'
-            print "[%s]: Player %s is in %s place" % (self.name(), player, self.buffer[len(self.buffer) - 1])
+            # Update place state variable and create an event
+            self.variables['place'] = int(mask[1].split('_')[0])
             self.create_event(self.name(), 'Initial', timestamp, player, self.variables['lap'], 
-                self.variables['place'], 'First given place is %s' % (self.buffer[0][1].split('.')[0]))
+                self.variables['place'], 'First given place: %s' % (self.buffer[0][1].split('_')[0]))
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1])
         # Check if the found mask is different than the previous one
-        elif mask.split('_')[0] != self.buffer[len(self.buffer) - 2].split('_')[0]:
-            # Update state variables
+        elif mask[1].split('_')[0] != self.buffer[len(self.buffer) - 2].split('_')[0]:
+            # Update place state variable and create an event
+            self.variables['place'] = int(mask[1].split('_')[0])
             self.create_event(self.name(), 'Place change', timestamp, player, self.variables['lap'], self.variables['place'], 
-                'Player changed place from %s to %s' % (self.buffer[0][1].split('.')[0], self.buffer[1][1].split('.')[0]))
+                'Player changed place from %s to %s' % (self.buffer[0][1].split('_')[0], self.buffer[1][1].split('_')[0]))
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
-                    self.buffer[len(self.buffer) - 2][0][1], self.buffer[len(self.buffer) - 1][1])
+                    self.buffer[len(self.buffer) - 2].split('_')[0], self.buffer[len(self.buffer) - 1].split('_')[0])
 
 
 class Collisions(Detector):
     """Detector for collisions
-            Collisions are when you get hit by a green shell, red shell, blue shell,
-            bomb-omb, or banana.
+    Collisions are when you get hit by a green shell, red shell, blue shell,
+    bomb-omb, or banana.
     """
     def process(self, frame, cur_count, player):
         frame = cv.GaussianBlur(frame, (3, 3), 1)
@@ -325,7 +342,7 @@ class Collisions(Detector):
 
     def handle(self, frame, player, mask, cur_count, location):
         # TODO/xxx: debounce hits
-        # Update state variables
+        # Create an event
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
         if 'banana' in mask[1]:
             subtype = 'banana'
@@ -345,7 +362,8 @@ class Laps(Detector):
 
     def handle(self, frame, player, mask, cur_count, location):
         # TODO/xxx: debounce hits
-        # Update state variables
+        # Increment the lap state variable and create an event
+        self.variables['lap'] += 1
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
         self.create_event('Lap', 'Lap Change', timestamp, player, self.variables['lap'], self.variables['place'],
             'Player is now on %s' % (mask[1].split('.')[0]))
@@ -360,14 +378,14 @@ class Items(Detector):
         self.buffer.append(mask[1])
         last_item = self.buffer[len(self.buffer) - 2]
         # Sorry for the gross if-statemen :-(
-        if len(self.buffer) > 1 and mask[1] is blank and last_item is not blank:
-            #TODO Update JSON here
+        if len(self.buffer) > 1 and mask[1] == blank and last_item != blank:
+            # Create an event
             timestamp = np.floor(cur_count / self.variables['frame_rate'])
             self.create_event(self.name(), 'Item get', timestamp, player, self.variables['lap'],
                 self.variables['place'], 'Player received a %s' % (last_item.split('.')[0]))
             self.buffer.clear()
-            if DEBUG_LEVEL > 1:
-                print "[%s] Player %s has %s" % (self.name(), player, last_item)
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s has %s" % (self.name(), player, last_item)
                 cv.imshow('frame', frame)
 
 
@@ -405,7 +423,7 @@ class Characters(Detector):
             char = image[0].rsplit(".", 1)[0]
             self.variables["p" + str(player + 1)] = char
             if DEBUG_LEVEL > 0:
-                print "Player %d is %s!" % (player + 1, char)
+                print "[%s]: Player %d is %s!" % (self.name(), player + 1, char)
         self.variables['num_players'] = len(ordered)
 
     def sort_characters(self, characters):
@@ -433,17 +451,21 @@ class StartRace(Detector):
             # Populate dictionary with start time
             self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 6
             if DEBUG_LEVEL > 0:
-                print '[StartRace]: Race started at ' + str(self.variables['start_time']) + ' seconds.'
+                print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
 
 
 class BeginRace(Detector):
     """Handles the beginning of a race in phase_1"""
     def handle(self, frame, player, mask, cur_count, location):
+        # Set lap state variable to 1, disable the detector, and create the event
+        self.variables['lap'] = 1
+        self.deactivate()
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
         self.create_event('Laps', self.name(), timestamp, player, self.variables['lap'],
-            self.variables['place'], 'Race has begun')
+            0, 'Race has begun')
 
 class EndRace(Detector):
+    """Handles the end of a race (phase_0)"""
     def __init__(self, variables, session_id):
         self.variables = variables
         self.session_id = session_id
@@ -482,11 +504,12 @@ class EndRace(Detector):
 class Map(Detector):
     """Determines which map is being played (phase_0)"""
     def handle(self, frame, player, mask, cur_count, location):
-        self.detector_states[self.name()] = False
+        # Disable the detector and update race variables
+        self.deactivate()
+        self.variables['map'] = mask[1].split('.')[0]
         if DEBUG_LEVEL > 0:
-            print 'Map is: ' + mask[1]
+            print '[%s]: Map is: %s' % (self.name(), mask[1].split('.')[0])
             cv.waitKey()
-        # Update JSON
 
 
 class Engine():
