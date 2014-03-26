@@ -35,6 +35,7 @@ class Worker(multiprocessing.Process):
         self.count = 1
         self.detectors = list()
         self.detector_states = dict() # Will be populated once Detectors are added
+        self.race_events_list = list() # List of event objects
         if bounds is None:
             self.phase = 0
         else:
@@ -48,8 +49,11 @@ class Worker(multiprocessing.Process):
             self.detector_states[detector.name()] = True
             self.detectors.append(detector)
         for d in self.detectors:
+            # Initialize detector states
             d.set_states(self.detector_states)
             d.set_variables(self.variables)
+            # Pass the same instance of race events list to each detector
+            d.set_race_events_list(self.race_events_list)
 
     def run(self):
         """Waits for & consumes frame buffer, then applies Detectors on each frame
@@ -97,7 +101,8 @@ class Worker(multiprocessing.Process):
                         if isinstance(d, detection.BoxExtractor):
                             d.detect(frame, self.count)
                         else:
-                            d.detect(region, self.count)
+                            # TODO/xxx: FIX THIS SHIT
+                            d.detect(region, self.count, 0)
                 self.count += 1
 
             if DEBUG_LEVEL > 0:

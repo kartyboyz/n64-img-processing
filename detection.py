@@ -42,7 +42,7 @@ from config import DEBUG_LEVEL
 
 class Detector(object):
     """Super (and abstract) class for all detectors, written specifically for MK64 events """
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, events, buf_len=None):
         if type(self) is Detector:
             raise Exception("<Detector> should be subclassed.")
         self.masks = [(cv.imread(masks_dir+name), name)
@@ -51,6 +51,7 @@ class Detector(object):
         self.threshold = threshold
         self.default_shape = default_shape
         self.variables = variables[0]
+        self.events = events
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
         self.detector_states = None #To be filled in by setter
@@ -67,18 +68,32 @@ class Detector(object):
     def deactivate(self):
         self.detector_states[self.name()] = False
 
+    def set_race_events_list(self, race_events_list):
+        self.race_events_list = race_events_list
+
     def set_states(self, states):
         self.detector_states = states
 
     def set_variables(self, variables):
         self.variables = variables
 
-    def detect(self, frame, cur_count):
+    def create_event(self, event_type, event_subtype, timestamp, player, lap, place, info):
+        # Create the event and then add it to the events list
+        event = {'lap': lap,
+                'place': place,
+                'player': player,
+                'event_type': event_type,
+                'event_subtype': event_subtype,
+                'event_info': str(info),
+                'timestamp': timestamp}
+        self.race_events_list.append(event)
+
+    def detect(self, frame, cur_count, player):
         """ Determines whether and how to process current frame"""
         if cur_count % self.freq is 0:
-            self.process(frame, cur_count)
+            self.process(frame, cur_count, player)
 
-    def process(self, frame, cur_count):
+    def process(self, frame, cur_count, player):
         """ Compares pre-loaded masks to current frame"""
         best_val = 1
         best_mask = None
@@ -96,9 +111,9 @@ class Detector(object):
                 best_mask = mask
         player = 0 #TODO: Remove this shit
         if best_mask is not None:
-            self.handle(frame, player, best_mask, cur_count, minloc)
+            self.handle(frame, player, best_mask, cur_count, minloc, player)
             if DEBUG_LEVEL > 1:
-                print "Found %s :-)" % (mask[1])
+                print "Found %s :-) ------> %s" % (best_mask[1], best_val)
 
     def handle(self, frame, player, mask, cur_count, location):
         # Detectors should be subclassed with their own handle() function
@@ -180,20 +195,22 @@ class BoxExtractor(Detector):
 
 
 class Shortcut(Detector):
-    """Faux-detector for determining if frame is black
-
+    """Faux-detector for determining if frame is black.
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
-    def __init__(self, variables, states):
+    def __init__(self, variables, states, events):
         self.variables = variables
         self.detector_states = states
+        self.events = events
 
-    def detect(self, frame, cur_count):
+    def detect(self, frame, cur_count, player):
         if self.variables['is_started']:
-            self.process(frame, cur_count)
+            self.process(frame, cur_count, player)
 
-    def process(self, frame, cur_count):
+    def process(self, frame, cur_count, player):
+        # TODO/xxx: REMOVE THIS
+        player = 0
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
         gray = cv.GaussianBlur(gray, (5,5), 1)
         _, gray = cv.threshold(gray, 80, 255, cv.THRESH_BINARY)
@@ -201,18 +218,22 @@ class Shortcut(Detector):
         # If at least 80% of the frame is true black, race has stopped
         if black_count <= float(20):
             print black_count
-            self.handle(frame, cur_count)
+            self.handle(frame, player, cur_count)
         if DEBUG_LEVEL > 0:
             cv.imshow('thresh', gray)
             cv.waitKey(1)
 
-    def handle(self, frame, cur_count):
+    def handle(self, frame, player, cur_count):
         print "[%s] Shortcut detected" % (self.__class__.__name__)
+        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        self.create_event(self.name(), self.name(), timestamp, player, 
+            self.variables['lap'], sef.variables['place'], 'In shortcut cave')
 
 
 
 class FinishRace(Detector):
-    def process(self, frame, cur_count):
+    """Detects the end of a race"""
+    def process(self, frame, cur_count, player):
         player = 0
         # First smooth out the image with a Gaussian blur
         if frame != None:
@@ -231,19 +252,23 @@ class FinishRace(Detector):
                 minval, _, minloc, _ = cv.minMaxLoc(distances)
                 if minval <= self.threshold:
                     print scaled_mask[1] + '--->' + str(minval)
-                    self.handle(frame, player, scaled_mask[1], cur_count)
+                    self.handle(frame, player, scaled_mask[1], cur_count, minloc)
                 if DEBUG_LEVEL > 0:
                     cv.imshow('thresh', binary)
                     #cv.imshow('mask', scaled_mask[0])
                     cv.waitKey(1)
 
-    def handle(self, frame, player, mask, cur_count):
+    def handle(self, frame, player, mask, cur_count, location):
         # TODO/xxx: do something
         print "[%s]: Player %s got %s place" % (self.__class__.__name__, player, mask)
+        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        self.create_event('Laps', self.name(), timestamp, player, self.variables['lap'], 
+            self.variables['place'], 'In shortcut cave')
 
 
 class PositionChange(Detector):
-    def process(self, frame, cur_count):
+    """Detector for handling changes in position/place"""
+    def process(self, frame, cur_count, player):
         player = 0
         # First smooth out the image with a Gaussian blur
         if frame != None:
@@ -263,27 +288,70 @@ class PositionChange(Detector):
                 minval, _, minloc, _ = cv.minMaxLoc(distances)
                 if minval <= self.threshold:
                     #print scaled_mask[1] + '-->' + str(minval)
-                    self.handle(frame, player, scaled_mask[1], cur_count)
+                    self.handle(frame, player, scaled_mask, cur_count, minloc)
                 if DEBUG_LEVEL > 0:
                     cv.imshow('binary', binary)
                     cv.imshow('mask', scaled_mask[0])
                     cv.waitKey(1)
 
-    def handle(self, frame, player, mask, cur_count):
+    def handle(self, frame, player, mask, cur_count, location):
         # Append the mask '#_place.png' to the ring buffer
-        self.buffer.append(mask)
+        self.buffer.append(mask[1])
         # If this is the first place that is given, store it
+        timestamp = np.floor(cur_count / self.variables['frame_rate'])
         if len(self.buffer) == 1:
             # Update state variables
             print 'First occurence!'
-            print "[%s]: Player %s is in %s place" % (self.__class__.__name__, player, self.buffer[len(self.buffer) - 1])
+            print "[%s]: Player %s is in %s place" % (self.name(), player, self.buffer[len(self.buffer) - 1])
+            self.create_event(self.name(), 'Initial', timestamp, player, self.variables['lap'], 
+                self.variables['place'], 'First given place is %s' % (self.buffer[0][1].split('.')[0]))
         # Check if the found mask is different than the previous one
         elif mask.split('_')[0] != self.buffer[len(self.buffer) - 2].split('_')[0]:
             # Update state variables
+            self.create_event(self.name(), 'Place change', timestamp, player, self.variables['lap'], self.variables['place'], 
+                'Player changed place from %s to %s' % (self.buffer[0][1].split('.')[0], self.buffer[1][1].split('.')[0]))
             if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s went from %s place to %s place " % (self.__class__.__name__, player, 
-                    self.buffer[len(self.buffer) - 2][0], self.buffer[len(self.buffer) - 1])
+                print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
+                    self.buffer[len(self.buffer) - 2][0][1], self.buffer[len(self.buffer) - 1][1])
 
+
+class Collisions(Detector):
+    """Detector for collisions
+            Collisions are when you get hit by a green shell, red shell, blue shell,
+            bomb-omb, or banana.
+    """
+    def process(self, frame, cur_count, player):
+        frame = cv.GaussianBlur(frame, (3, 3), 1)
+        super(Collisions, self).process(frame, cur_count, player)
+
+    def handle(self, frame, player, mask, cur_count, location):
+        # TODO/xxx: debounce hits
+        # Update state variables
+        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        if 'banana' in mask[1]:
+            subtype = 'banana'
+        else:
+            subtype = 'shell or bomb'
+        self.create_event(self.name(), subtype, timestamp, self.variables['lap'], self.variables['place'], 
+            'Player collided with an object')
+        if DEBUG_LEVEL > 0:
+            print "[%s]: Player %s was hit with an item or bomb-omb" % (self.name(), player)
+
+
+class Laps(Detector):
+    """Detector for lap changes"""
+    def process(self, frame, cur_count, player):
+        frame = cv.GaussianBlur(frame, (5, 5), 1)
+        super(Laps, self).process(frame, cur_count, player)
+
+    def handle(self, frame, player, mask, cur_count, location):
+        # TODO/xxx: debounce hits
+        # Update state variables
+        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        self.create_event('Lap', 'Lap Change', timestamp, player, self.variables['lap'], self.variables['place'],
+            'Player is now on %s' % (mask[1].split('.')[0]))
+        if DEBUG_LEVEL > 0:
+            print "[%s]: Player %s is on %s" % (self.__class__.__name__, player, mask[1])
 
 
 class Items(Detector):
@@ -295,15 +363,19 @@ class Items(Detector):
         # Sorry for the gross if-statemen :-(
         if len(self.buffer) > 1 and mask[1] is blank and last_item is not blank:
             #TODO Update JSON here
+            timestamp = np.floor(cur_count / self.variables['frame_rate'])
+            self.create_event(self.name(), 'Item get', timestamp, player, self.variables['lap'],
+                self.variables['place'], 'Player received a %s' % (last_item.split('.')[0]))
             self.buffer.clear()
             if DEBUG_LEVEL > 1:
                 print "[%s] Player %s has %s" % (self.name(), player, last_item)
+                cv.imshow('frame', frame)
 
 
 class Characters(Detector):
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, events, buf_len=None):
         self.waiting_black = False
-        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
+        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, variables, events, buf_len)
 
     def detect(self, frame, cur_count):
         if self.variables['is_black']:
@@ -315,7 +387,7 @@ class Characters(Detector):
             height, width, _ = frame.shape
             focus_region = frame[np.ceil(height * 0.25) : np.ceil(height * 0.95),
                                  np.ceil(width * 0.25) : np.ceil(width * 0.75)]
-            self.process(focus_region, cur_count)
+            self.process(focus_region, cur_count, player)
             if DEBUG_LEVEL > 1:
                 cv.imshow(self.name(), focus_region)
                 cv.waitKey(1)
@@ -348,8 +420,8 @@ class Characters(Detector):
         ordered = sorted(ordered, key=lambda x: x[1])
         return ordered
 
-
 class StartRace(Detector):
+    """Handles the beginning of a race in phase_0"""
     def handle(self, frame, player, mask, cur_count, location):
             self.variables['is_started'] = True
             self.detector_states['StartRace'] = False
@@ -365,9 +437,17 @@ class StartRace(Detector):
                 print '[StartRace]: Race started at ' + str(self.variables['start_time']) + ' seconds.'
 
 
+class BeginRace(Detector):
+    """Handles the beginning of a race in phase_1"""
+    def handle(self, frame, player, mask, cur_count, location):
+        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        self.create_event('Laps', self.name(), timestamp, player, self.variables['lap'],
+            self.variables['place'], 'Race has begun')
+
 class EndRace(Detector):
-    def __init__(self, variables, session_id):
+    def __init__(self, variables, session_id, events):
         self.variables = variables
+        self.events = events
         self.session_id = session_id
 
     def detect(self, frame, cur_count):
@@ -404,7 +484,7 @@ class EndRace(Detector):
 
 #TODO Fix map masks!!!!
 class Map(Detector):
-    """Determines which map is being played"""
+    """Determines which map is being played (phase_0)"""
     def handle(self, frame, player, mask, cur_count, location):
         self.detector_states[self.name()] = False
         if DEBUG_LEVEL > 0:
