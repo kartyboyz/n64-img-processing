@@ -42,7 +42,7 @@ from config import DEBUG_LEVEL
 
 class Detector(object):
     """Super (and abstract) class for all detectors, written specifically for MK64 events """
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, events, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
         if type(self) is Detector:
             raise Exception("<Detector> should be subclassed.")
         self.masks = [(cv.imread(masks_dir+name), name)
@@ -51,7 +51,6 @@ class Detector(object):
         self.threshold = threshold
         self.default_shape = default_shape
         self.variables = variables[0]
-        self.events = events
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
         self.detector_states = None #To be filled in by setter
@@ -199,10 +198,9 @@ class Shortcut(Detector):
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
-    def __init__(self, variables, states, events):
+    def __init__(self, variables, states):
         self.variables = variables
         self.detector_states = states
-        self.events = events
 
     def detect(self, frame, cur_count, player):
         if self.variables['is_started']:
@@ -373,9 +371,9 @@ class Items(Detector):
 
 
 class Characters(Detector):
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, events, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
         self.waiting_black = False
-        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, variables, events, buf_len)
+        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
 
     def detect(self, frame, cur_count):
         if self.variables['is_black']:
@@ -445,9 +443,8 @@ class BeginRace(Detector):
             self.variables['place'], 'Race has begun')
 
 class EndRace(Detector):
-    def __init__(self, variables, session_id, events):
+    def __init__(self, variables, session_id):
         self.variables = variables
-        self.events = events
         self.session_id = session_id
 
     def detect(self, frame, cur_count):
