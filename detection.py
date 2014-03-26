@@ -110,7 +110,8 @@ class Detector(object):
                 best_mask = mask
         player = 0 #TODO: Remove this shit
         if best_mask is not None:
-            self.handle(frame, player, best_mask, cur_count, minloc, player)
+            print 'HANDLING ' + self.name()
+            self.handle(frame, player, best_mask, cur_count, minloc)
             if DEBUG_LEVEL > 1:
                 print "Found %s :-) ------> %s" % (best_mask[1], best_val)
 
@@ -465,18 +466,16 @@ class EndRace(Detector):
         self.detector_states['BoxExtractor'] = True
         self.detector_states['Map'] = True
 
-        if DEBUG_LEVEL > 1:
-            print self.detector_states
         # Populate dictionary with race duration
         self.variables['duration'] = np.ceil((cur_count / self.variables['frame_rate']) - self.variables['start_time'])
         if DEBUG_LEVEL == 0:
             try:
                 database.put_race(self.variables)
             except: #TODO Figure out exact exceptions
-                # Database error, dump to filesystem
-                self.variables.save("dbfail_session%i.dump" % (self.variables['session_id']))
-                #TODO Decide if we ever want to be able to recover dump files
+                # UH OH!
+                pass
         else:
+            print self.detector_states
             print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.variables['duration'])
 
 #TODO Fix map masks!!!!
