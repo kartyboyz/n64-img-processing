@@ -90,9 +90,9 @@ class FinishRace(Detector):
             binary = cv.inRange(binary, (8, 185, 212), (40, 255, 255))
             # Blur again to smooth out thresholded frame
             binary = cv.GaussianBlur(binary, (5, 5), 1)
-            for mask in self.masks:
-                if frame.shape != self.default_shape:
-                    scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], self.default_shape), cv.COLOR_BGR2GRAY), mask[1])
+            for mask, shape in zip(self.masks, self.default_shape):
+                if frame.shape != shape:
+                    scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], shape), cv.COLOR_BGR2GRAY), mask[1])
                 else:
                     scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
                 distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
@@ -128,9 +128,9 @@ class PositionChange(Detector):
             binary = cv.inRange(hsv, (8, 185, 212), (40, 255, 255))
             binary = cv.GaussianBlur(binary, (5,5), 1)
 
-            for mask in self.masks:
-                if frame.shape != self.default_shape:
-                    scaled_mask = (cv.GaussianBlur(cv.cvtColor(utility.scaleImage(frame,mask[0], self.default_shape), 
+            for mask, shape in zip(self.masks, self.default_shape):
+                if frame.shape != shape:
+                    scaled_mask = (cv.GaussianBlur(cv.cvtColor(utility.scaleImage(frame,mask[0], shape), 
                         cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
                 else:
                     scaled_mask = (cv.GaussianBlur(cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])

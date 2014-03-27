@@ -27,6 +27,9 @@ class Detector(object):
                       for name in os.listdir(masks_dir)]
         self.freq = freq
         self.threshold = threshold
+        if len(default_shape) != 1 and len(default_shape) != len(self.masks):
+            print len(self.masks), len(default_shape)
+            raise Exception("Default shape must be of length 1 or length of masks list.")
         self.default_shape = default_shape
         self.variables = variables[0]
         if buf_len:
@@ -86,11 +89,9 @@ class Detector(object):
         """ Compares pre-loaded masks to current frame"""
         best_val = 1
         best_mask = None
-        for mask in self.masks:
-            if frame.shape != self.default_shape:
-                scaled_mask = (utility.scaleImage(frame,
-                                                  mask[0],
-                                                  self.default_shape), mask[1])
+        for mask, shape in zip(self.masks, self.default_shape):
+            if frame.shape != shape:
+                scaled_mask = (utility.scaleImage(frame,mask[0], shape), mask[1])
             else:
                 scaled_mask = mask
             distances = cv.matchTemplate(frame, mask[0], cv.TM_SQDIFF_NORMED)

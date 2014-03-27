@@ -34,20 +34,20 @@ def main(session_id, video_file):
     ITEMS = detection.Items(masks_dir='./high_res_masks/item_masks/',
                             freq=1,
                             threshold=0.16,
-                            default_shape=(237, 314, 3),
+                            default_shape=[(237, 314, 3)],
                             variables=VARIABLES,
                             buf_len=8)
     #TODO Fix thresh. for CHARS
     CHARS = detection.Characters(masks_dir='./high_res_masks/char_masks/',
                                  freq=1,
                                  threshold=0.10,
-                                 default_shape=(333, 318, 3),
+                                 default_shape=[(333, 318, 3)],
                                  variables=VARIABLES,
                                  buf_len=8)
     START_RACE = detection.StartRace(masks_dir='./high_res_masks/start_masks/',
                                      freq=1,
                                      threshold=0.17,
-                                     default_shape=(237, 314, 3),
+                                     default_shape=[(237, 318, 3), (237, 318, 3), (237, 344, 3)],
                                      variables=VARIABLES)
     END_RACE = detection.EndRace(variables=VARIABLES,
                                  session_id=session_id)
@@ -56,7 +56,7 @@ def main(session_id, video_file):
                               video_source=video_file.name)
     ENGINE.setup_processes(num=1,
                            regions=[None])
-    ENGINE.add_detectors([BLACK, BOXES, CHARS, START_RACE, END_RACE])
+    ENGINE.add_detectors([BLACK, BOXES, START_RACE, END_RACE])
 
     """Main"""
     rv = ENGINE.process()
