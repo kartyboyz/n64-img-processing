@@ -15,7 +15,7 @@ from config import DEBUG_LEVEL
 # Number of frames to be passed to subprocesses
 #    We can vary this to change how much memory is being used
 #    MEM_USAGE = BUFFER_LENGTH * sizeof(array_element) * frame.size
-BUFFER_LENGTH = 400
+BUFFER_LENGTH = 200
 
 
 class Worker(multiprocessing.Process):
@@ -65,7 +65,7 @@ class Worker(multiprocessing.Process):
         """
         while True:
             if self.done.is_set():
-                break
+		break
             self.event.wait() # Blocking - trigger MUST be set
             buff = np.frombuffer(self.shared.get_obj(), dtype=ctypes.c_ubyte)
             for i in range(BUFFER_LENGTH):
@@ -162,3 +162,6 @@ class ProcessManager(object):
         for idx, worker in enumerate(self.workers):
             worker.done.set()
             self.triggers[idx].set()
+        for worker in self.workers:
+            # A little extreme, but ensures everything returns in the right order
+            worker.terminate()

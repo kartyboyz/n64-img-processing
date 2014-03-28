@@ -59,8 +59,9 @@ def main(session_id, video_file):
     ENGINE.add_detectors([BLACK, BOXES, CHARS, START_RACE, END_RACE])
 
     """Main"""
-    ENGINE.process()
-    ENGINE.cleanup()
+    rv = ENGINE.process()
+    print VARIABLES
+
 
 def instructions():
     print "Debugger's Instructions:"

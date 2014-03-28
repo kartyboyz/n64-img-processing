@@ -190,7 +190,9 @@ class Engine():
             except StopIteration:
                 # Handle dangling frames in buffer and return gracefully
                 self.manager.detect()
-                return
+                self.barrier.wait()
+                self.cleanup()
+                return self.variables
 
     def clear_buffer(self, offset):
         """Cleans up the rest of the buffer
@@ -201,6 +203,6 @@ class Engine():
 
     def cleanup(self):
         """Frees memory, alerts child processes to finish"""
-        self.barrier.abort()
-        self.capture.release()
         self.manager.close()
+        self.capture.release()
+        self.barrier.abort()

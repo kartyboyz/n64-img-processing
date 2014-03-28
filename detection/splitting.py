@@ -86,7 +86,7 @@ class Characters(Detector):
                 cv.imshow(self.name(), focus_region)
                 cv.waitKey(1)
 
-    def handle(self, frame, mask, cur_count, location):
+    def handle(self, frame, player, mask, cur_count, location):
         self.waiting_black = True
         self.buffer.append((mask[1], location))
 
