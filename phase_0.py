@@ -22,6 +22,7 @@ Required Detectors:
 
 import sys
 import detection
+from subprocess import call
 
 
 def main(session_id, video_file):
@@ -63,10 +64,19 @@ def main(session_id, video_file):
     print VARIABLES
 
 
+
 def instructions():
     print "Debugger's Instructions:"
     print "\t<ESC> exits program"
     print "\t<space> pauses/unpauses current frame\n\n"
+
+
+def split_video(src, dst, start, end):
+    command = ['ffmpeg', '-i', src, 
+            '-vcodec', 'copy', '-acodec', 'copy',
+            '-ss', str(start), '-t', str(end), dst ]
+    call(command)
+
 
 if __name__ == '__main__':
     if len(sys.argv) is not 3:

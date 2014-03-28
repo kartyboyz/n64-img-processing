@@ -48,22 +48,25 @@ class BoxExtractor(Detector):
             self.variables['player_boxes'][:] = []
             for coord in itertools.product(points[0], points[1]):
                 self.variables['player_boxes'].append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
-            self.variables['player_boxes'] = self.sort_boxes(self.variables['player_boxes'])
+            self.variables['player_boxes'] = self.sort_boxes(self.variables['player_boxes'], cur_frame)
         else:
             # Completely black frame
             self.variables['player_boxes'].append([(0, cur_frame.shape[1]), (0, cur_frame.shape[0])])
 
-    def sort_boxes(self, boxes):
+    def sort_boxes(self, boxes, cur_frame):
         """Sorting algorithm that places priority on "top left" boxes"""
-        ordered = list()
-        upper = np.max(boxes).astype(float)
-        for box in boxes:
-            box_normed = np.divide(box, upper)
-            rank = np.sum(100 * box_normed[1]) + np.sum(10 * box_normed[0])
-            ordered.append((box, rank))
-        ordered = sorted(ordered, key=lambda x:x[1])
-        result = [el[0] for el in ordered]
-        return result
+        if boxes:
+            ordered = list()
+            upper = np.max(boxes).astype(float)
+            for box in boxes:
+                box_normed = np.divide(box, upper)
+                rank = np.sum(100 * box_normed[1]) + np.sum(10 * box_normed[0])
+                ordered.append((box, rank))
+            ordered = sorted(ordered, key=lambda x:x[1])
+            result = [el[0] for el in ordered]
+            return result
+        else:
+            return [(0, cur_frame.shape[1]), (0, cur_frame.shape[0])]
 
 
 class Characters(Detector):
@@ -131,18 +134,18 @@ class StartRace(Detector):
     """Handles the beginning of a race in phase_0"""
     def handle(self, frame, player, mask, cur_count, location):
             self.variables['is_started'] = True
-            self.detector_states['StartRace'] = False
-            self.detector_states['EndRace']   = True
-            self.detector_states['Characters'] = False
-            self.detector_states['BoxExtractor'] = False
-            self.detector_states['Map'] = False
+            self.deactivate()
+            self.activate('EndRace')
+            self.deactivate('Characters')
+            self.deactivate('BoxExtractor')
+            self.deactivate('Map')
             # Lock in player boxes (should be sorted alreadY)
             self.variables['player_boxes'] = self.variables['player_boxes']
             # Populate dictionary with start time
-            self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 6
+            self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 2
             if DEBUG_LEVEL > 0:
                 print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
-                cv.waitKey(0)
+                cv.waitKey(1)
 
 
 class EndRace(Detector):
@@ -161,16 +164,17 @@ class EndRace(Detector):
 
     def handle(self, cur_count):
         self.variables['is_started'] = False
-        #TODO We could simplify this to make it cleaner
-        # On end race, deactivate EndRaceDetector, activate StartRaceDetector and CharDetector
-        self.detector_states['EndRace'] = False
-        self.detector_states['StartRace'] = True
-        self.detector_states['Characters'] = True
-        self.detector_states['BoxExtractor'] = True
-        self.detector_states['Map'] = True
-
         # Populate dictionary with race duration
         self.variables['duration'] = np.ceil((cur_count / self.variables['frame_rate']) - self.variables['start_time'])
+        self.variables['events'].append([(self.variables['start_time'], self.variables['duration'])])
+        print self.variables['events']
+
+        # On end race, deactivate EndRaceDetector, activate StartRaceDetector and CharDetector
+        self.deactivate()
+        self.activate('StartRace')
+        self.activate('Characters')
+        self.activate('Map')
+
         if DEBUG_LEVEL == 0:
             try:
                 database.put_race(self.variables)

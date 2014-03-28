@@ -15,32 +15,6 @@ from generic import Detector
 from config import DEBUG_LEVEL
 
 
-class BlackFrame(Detector):
-    """Faux-detector for determining if frame is black.
-    Most of the functions are overriding the superclass.
-    Updates race variables that race has stopped if above is true
-    """
-    def __init__(self, variables):
-        self.variables = variables
-
-    def detect(self, frame, cur_count):
-        self.variables['is_black'] = False
-        self.process(frame, cur_count)
-
-    def process(self, frame, cur_count):
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        _, gray = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)
-        black_count = float(np.sum(gray)) / float(gray.size)
-        # If at least 80% of the frame is true black, race has stopped
-        if black_count <= 0.2:
-            self.handle(frame, cur_count)
-
-    def handle(self, frame, cur_count):
-        self.variables['is_black'] = True
-        if DEBUG_LEVEL > 1:
-            print "[%s]: Handled" % (self.name())
-
-
 class Shortcut(Detector):
     """Faux-detector for determining if frame is black.
     Most of the functions are overriding the superclass.
