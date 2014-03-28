@@ -61,8 +61,10 @@ def main(session_id, video_file):
 
     """Main"""
     rv = ENGINE.process()
-    print VARIABLES[0].keys()
-    print VARIABLES[0].values()
+    for ii in xrange(len(VARIABLES[0]['events'])):
+        dst = './sample_video/top_secret_test_boyz/race_split' + str(ii) + '.mov'
+        split_video(video_file.name, dst,
+            VARIABLES[0]['events'][ii]['start_time'], VARIABLES[0]['events'][ii]['duration'])
 
 def instructions():
     print "Debugger's Instructions:"
@@ -72,7 +74,6 @@ def instructions():
 
 def split_video(src, dst, start, end):
     command = ['ffmpeg', '-i', src, 
-            '-vcodec', 'copy', '-acodec', 'copy',
             '-ss', str(start), '-t', str(end), dst ]
     call(command)
 
