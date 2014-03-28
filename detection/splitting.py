@@ -46,16 +46,17 @@ class BoxExtractor(Detector):
         if utility.in_range(len(points[0]), 1, 2) and \
            utility.in_range(len(points[1]), 1, 2):
             self.variables['player_boxes'][:] = []
+            local = list()
             for coord in itertools.product(points[0], points[1]):
-                self.variables['player_boxes'].append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
-            self.variables['player_boxes'] = self.sort_boxes(self.variables['player_boxes'], cur_frame)
+                local.append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
+            self.variables['player_boxes'] = self.sort_boxes(local, cur_frame)
         else:
             # Completely black frame
-            self.variables['player_boxes'].append([(0, cur_frame.shape[1]), (0, cur_frame.shape[0])])
+            self.variables['player_boxes'] = [[(0, cur_frame.shape[1]), (0, cur_frame.shape[0])]]
 
     def sort_boxes(self, boxes, cur_frame):
         """Sorting algorithm that places priority on "top left" boxes"""
-        if boxes:
+        if len(boxes) != 0:
             ordered = list()
             upper = np.max(boxes).astype(float)
             for box in boxes:
@@ -66,7 +67,7 @@ class BoxExtractor(Detector):
             result = [el[0] for el in ordered]
             return result
         else:
-            return [(0, cur_frame.shape[1]), (0, cur_frame.shape[0])]
+            return [[(0, cur_frame.shape[1]), (0, cur_frame.shape[0])]]
 
 
 class Characters(Detector):
