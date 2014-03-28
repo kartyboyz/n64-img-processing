@@ -144,6 +144,10 @@ class StartRace(Detector):
             self.variables['player_boxes'] = self.variables['player_boxes']
             # Populate dictionary with start time
             self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 2
+
+            events = self.variables['events']
+            events.append('startsracs!')
+            self.variables['events'] = events
             if DEBUG_LEVEL > 0:
                 print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
                 cv.waitKey(1)
@@ -175,7 +179,9 @@ class EndRace(Detector):
         self.activate('StartRace')
         self.activate('Characters')
         self.activate('Map')
-
+        events = self.variables['events']
+        events.append('endrace!')
+        self.variables['events'] = events
         if DEBUG_LEVEL == 0:
             try:
                 database.put_race(self.variables)
