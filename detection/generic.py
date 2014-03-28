@@ -69,16 +69,10 @@ class Detector(object):
     def set_variables(self, variables):
         self.variables = variables
 
-    def create_event(self, event_type, event_subtype, timestamp, player, lap, place, info):
-        # Create the event and then add it to the events list
-        event = {'lap': lap,
-                'place': place,
-                'player': player,
-                'event_type': event_type,
-                'event_subtype': event_subtype,
-                'event_info': str(info),
-                'timestamp': timestamp}
-        self.race_events_list.append(event)
+    def create_event(self, **kwargs):
+        events = self.variables['events']
+        events.append(kwargs)
+        self.variables['events'] = events
 
     def detect(self, frame, cur_count, player):
         """ Determines whether and how to process current frame"""

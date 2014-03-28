@@ -45,8 +45,13 @@ class Shortcut(Detector):
     def handle(self, frame, player, cur_count):
         # Create event
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
-        self.create_event(self.name(), self.name(), timestamp, player, 
-            self.variables['lap'], sef.variables['place'], 'In shortcut cave')
+        self.create_event(event_type=self.name(),
+                          event_subtype=self.name(),
+                          timestamp=timestamp,
+                          player=player,
+                          lap=self.variables['lap'],
+                          place=self.variables['place'],
+                          info="In shortcut cave")
         if DEBUG_LEVEL > 0:
             print "[%s]: Shortcut detected" % (self.name())
 
@@ -84,8 +89,13 @@ class FinishRace(Detector):
         self.deactivate('PositionChange')
         self.variables['place'] = int(mask[1].split('_')[0])
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
-        self.create_event('Laps', self.name(), timestamp, player, self.variables['lap'], 
-            self.variables['place'], "Player %s finishing place: %s" % (player, mask[1].split('_')[0]))
+        self.create_event(event_type='Laps',
+                          event_subtype=self.name(),
+                          timestamp=timestamp,
+                          player=player,
+                          lap=self.variables['lap'],
+                          place=self.variables['place'],
+                          info="Player %s finishing place: %s" % (player, mask[1].split('_')[0]))
         if DEBUG_LEVEL > 0:
             print "[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1].split('_')[0])
 
@@ -127,16 +137,26 @@ class PositionChange(Detector):
         if len(self.buffer) == 1:
             # Update place state variable and create an event
             self.variables['place'] = int(mask[1].split('_')[0])
-            self.create_event(self.name(), 'Initial', timestamp, player, self.variables['lap'], 
-                self.variables['place'], 'First given place: %s' % (self.buffer[0][1].split('_')[0]))
+            self.create_event(event_type=self.name(),
+                              event_subtype='Initial',
+                              timestamp=timestamp,
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player %s finishing place: %s" % (player, mask[1].split('_')[0]))
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1])
         # Check if the found mask is different than the previous one
         elif mask[1].split('_')[0] != self.buffer[len(self.buffer) - 2].split('_')[0]:
             # Update place state variable and create an event
             self.variables['place'] = int(mask[1].split('_')[0])
-            self.create_event(self.name(), 'Place change', timestamp, player, self.variables['lap'], self.variables['place'], 
-                'Player changed place from %s to %s' % (self.buffer[0][1].split('_')[0], self.buffer[1][1].split('_')[0]))
+            self.create_event(event_type=self.name(),
+                              event_subtype='Place change',
+                              timestamp=timestamp,
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player changed place from %s to %s" % (self.buffer[0][1].split('_')[0], self.buffer[1][1].split('_')[0]))
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
                     self.buffer[len(self.buffer) - 2].split('_')[0], self.buffer[len(self.buffer) - 1].split('_')[0])
@@ -159,8 +179,13 @@ class Collisions(Detector):
             subtype = 'banana'
         else:
             subtype = 'shell or bomb'
-        self.create_event(self.name(), subtype, timestamp, self.variables['lap'], self.variables['place'], 
-            'Player collided with an object')
+        self.create_event(event_type=self.name(),
+                          event_subtype=subtype,
+                          timestamp=timestamp,
+                          player=player,
+                          lap=self.variables['lap'],
+                          place=self.variables['place'],
+                          info="Player collided with an object")
         if DEBUG_LEVEL > 0:
             print "[%s]: Player %s was hit with an item or bomb-omb" % (self.name(), player)
 
@@ -176,8 +201,13 @@ class Laps(Detector):
         # Increment the lap state variable and create an event
         self.variables['lap'] += 1
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
-        self.create_event('Lap', 'Lap Change', timestamp, player, self.variables['lap'], self.variables['place'],
-            'Player is now on %s' % (mask[1].split('.')[0]))
+        self.create_event(event_type='Lap',
+                          event_subtype='Lap Change',
+                          timestamp=timestamp,
+                          player=player,
+                          lap=self.variables['lap'],
+                          place=self.variables['place'],
+                          info="Player is now on lap %s" % (mask[1].split('.')[0]))
         if DEBUG_LEVEL > 0:
             print "[%s]: Player %s is on %s" % (self.__class__.__name__, player, mask[1])
 
@@ -192,8 +222,13 @@ class Items(Detector):
         if len(self.buffer) > 1 and mask[1] == blank and last_item != blank:
             # Create an event
             timestamp = np.floor(cur_count / self.variables['frame_rate'])
-            self.create_event(self.name(), 'Item get', timestamp, player, self.variables['lap'],
-                self.variables['place'], 'Player received a %s' % (last_item.split('.')[0]))
+            self.create_event(event_type=self.name(),
+                              event_subtype='Item Get',
+                              timestamp=timestamp,
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player received a %s" % (last_item.split('.')[0]))
             self.buffer.clear()
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s has %s" % (self.name(), player, last_item)
@@ -207,5 +242,10 @@ class BeginRace(Detector):
         self.variables['lap'] = 1
         self.deactivate()
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
-        self.create_event('Laps', self.name(), timestamp, player, self.variables['lap'],
-            0, 'Race has begun')
+        self.create_event(event_type='Laps',
+                          event_subtype=self.name(),
+                          timestamp=timestamp,
+                          player=player,
+                          lap=self.variables['lap'],
+                          place=0,
+                          info="Race has begun")
