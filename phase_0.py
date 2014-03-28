@@ -47,7 +47,7 @@ def main(session_id, video_file):
     START_RACE = detection.StartRace(masks_dir='./high_res_masks/start_masks/',
                                      freq=1,
                                      threshold=0.17,
-                                     default_shape=[(237, 318, 3), (237, 318, 3), (237, 344, 3)],
+                                     default_shape=[(237, 318, 3), (237, 344, 3)],
                                      variables=VARIABLES)
     END_RACE = detection.EndRace(variables=VARIABLES,
                                  session_id=session_id)
@@ -60,8 +60,8 @@ def main(session_id, video_file):
 
     """Main"""
     rv = ENGINE.process()
-    print VARIABLES
-
+    print VARIABLES[0].keys()
+    print VARIABLES[0].values()
 
 def instructions():
     print "Debugger's Instructions:"
