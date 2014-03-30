@@ -61,6 +61,8 @@ class FinishRace(Detector):
     """Detects the end of a race (phase_1)"""
     def process(self, frame, cur_count, player):
         player = 0
+        best_val = 1
+        best_mask = None
         # First smooth out the image with a Gaussian blur
         if frame != None:
             frame = cv.GaussianBlur(frame, (5, 5), 1)
@@ -69,19 +71,42 @@ class FinishRace(Detector):
             binary = cv.inRange(binary, (8, 185, 212), (40, 255, 255))
             # Blur again to smooth out thresholded frame
             binary = cv.GaussianBlur(binary, (5, 5), 1)
-            for mask, shape in zip(self.masks, self.default_shape):
-                if frame.shape != shape:
-                    scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], shape), cv.COLOR_BGR2GRAY), mask[1])
-                else:
-                    scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
-                distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
-                minval, _, minloc, _ = cv.minMaxLoc(distances)
-                if minval <= self.threshold:
-                    print "Found %s :-) ------> %s" % (scaled_mask[1], minval)
-                    self.handle(frame, player, scaled_mask, cur_count, minloc)
-                if DEBUG_LEVEL > 1:
-                    cv.imshow('thresh', binary)
-                    cv.waitKey(1)
+            if len(self.default_shape) != 1:
+                for mask, shape in zip(self.masks, self.default_shape):
+                    if frame.shape != shape:
+                        scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], shape), cv.COLOR_BGR2GRAY), mask[1])
+                    else:
+                        scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
+                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    minval, _, minloc, _ = cv.minMaxLoc(distances)
+                    if minval <= self.threshold and minval < best_val:
+                        best_val = minval
+                        best_mask = scaled_mask
+                if best_mask is not None:
+                    self.handle(frame, player, best_mask, cur_count, minloc)
+                    if DEBUG_LEVEL > 0:
+                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+                    if DEBUG_LEVEL > 1:
+                        cv.imshow('thresh', binary)
+                        cv.waitKey(1)
+            else:
+                for mask in self.masks:
+                    if frame.shape != self.default_shape[0]:
+                        scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], self.default_shape[0]), cv.COLOR_BGR2GRAY), mask[1])
+                    else:
+                        scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
+                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    minval, _, minloc, _ = cv.minMaxLoc(distances)
+                    if minval <= self.threshold and minval < best_val:
+                        best_val = minval
+                        best_mask = scaled_mask
+                if best_mask is not None:
+                    self.handle(frame, player, best_mask, cur_count, minloc)
+                    if DEBUG_LEVEL > 0:
+                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+                    if DEBUG_LEVEL > 1:
+                        cv.imshow('thresh', binary)
+                        cv.waitKey(1)
 
     def handle(self, frame, player, mask, cur_count, location):
         # Deactivate the detector & PositionChange to be safe, and set the final place state variable
@@ -104,6 +129,8 @@ class PositionChange(Detector):
     """Detector for handling changes in position/place"""
     def process(self, frame, cur_count, player):
         player = 0
+        best_val = 1
+        best_mask = None
         # First smooth out the image with a Gaussian blur
         if frame != None:
             frame = cv.GaussianBlur(frame, (5, 5), 1)
@@ -111,23 +138,44 @@ class PositionChange(Detector):
             hsv = cv.cvtColor(frame , cv.COLOR_BGR2HSV)
             binary = cv.inRange(hsv, (8, 185, 212), (40, 255, 255))
             binary = cv.GaussianBlur(binary, (5,5), 1)
-
-            for mask, shape in zip(self.masks, self.default_shape):
-                if frame.shape != shape:
-                    scaled_mask = (cv.GaussianBlur(cv.cvtColor(utility.scaleImage(frame,mask[0], shape), 
-                        cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
-                else:
-                    scaled_mask = (cv.GaussianBlur(cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
-                distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
-                minval, _, minloc, _ = cv.minMaxLoc(distances)
-                if minval <= self.threshold:
+            if len(self.default_shape) != 1:
+                for mask, shape in zip(self.masks, self.default_shape):
+                    if frame.shape != shape:
+                        scaled_mask = (cv.GaussianBlur(cv.cvtColor(utility.scaleImage(frame,mask[0], shape), 
+                            cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                    else:
+                        scaled_mask = (cv.GaussianBlur(cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    minval, _, minloc, _ = cv.minMaxLoc(distances)
+                    if minval <= self.threshold and minval < best_val:
+                        best_val = minval
+                        best_mask = scaled_mask
+                if best_mask is not None:
+                    self.handle(frame, player, best_mask, cur_count, minloc)
                     if DEBUG_LEVEL > 0:
-                        print "Found %s :-) ------> %s" % (scaled_mask[1], minval)
-                    self.handle(frame, player, scaled_mask, cur_count, minloc)
-                if DEBUG_LEVEL > 1:
-                    cv.imshow('binary', binary)
-                    cv.imshow('mask', scaled_mask[0])
-                    cv.waitKey(1)
+                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+                    if DEBUG_LEVEL > 1:
+                        cv.imshow('thresh', binary)
+                        cv.waitKey(1)
+            else:
+                for mask in self.masks:
+                    if frame.shape != self.default_shape[0]:
+                            scaled_mask = (cv.GaussianBlur(cv.cvtColor(utility.scaleImage(frame,mask[0], self.default_shape[0]), 
+                                cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                    else:
+                        scaled_mask = (cv.GaussianBlur(cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    minval, _, minloc, _ = cv.minMaxLoc(distances)
+                    if minval <= self.threshold and minval < best_val:
+                        best_val = minval
+                        best_mask = scaled_mask
+                if best_mask is not None:
+                    self.handle(frame, player, best_mask, cur_count, minloc)
+                    if DEBUG_LEVEL > 0:
+                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+                    if DEBUG_LEVEL > 1:
+                        cv.imshow('thresh', binary)
+                        cv.waitKey(1)
 
     def handle(self, frame, player, mask, cur_count, location):
         # Append the mask '#_place.png' to the ring buffer
@@ -150,13 +198,17 @@ class PositionChange(Detector):
         elif mask[1].split('_')[0] != self.buffer[len(self.buffer) - 2].split('_')[0]:
             # Update place state variable and create an event
             self.variables['place'] = int(mask[1].split('_')[0])
+            if int(mask[1].split('_')[0]) > int(self.buffer[len(self.buffer) - 2].split('_')[0]):
+                subtype = 'Passed'
+            else:
+                subtype = 'Passing'
             self.create_event(event_type=self.name(),
-                              event_subtype='Place change',
+                              event_subtype=subtype,
                               timestamp=timestamp,
                               player=player,
                               lap=self.variables['lap'],
                               place=self.variables['place'],
-                              info="Player changed place from %s to %s" % (self.buffer[0][1].split('_')[0], self.buffer[1][1].split('_')[0]))
+                              info="Player changed place from %s to %s" % (self.buffer[0].split('_')[0], self.buffer[1].split('_')[0]))
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
                     self.buffer[len(self.buffer) - 2].split('_')[0], self.buffer[len(self.buffer) - 1].split('_')[0])
@@ -176,9 +228,9 @@ class Collisions(Detector):
         # Create an event
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
         if 'banana' in mask[1]:
-            subtype = 'banana'
+            subtype = 'Banana'
         else:
-            subtype = 'shell or bomb'
+            subtype = 'Shell or Bomb'
         self.create_event(event_type=self.name(),
                           event_subtype=subtype,
                           timestamp=timestamp,
@@ -240,6 +292,7 @@ class BeginRace(Detector):
     def handle(self, frame, player, mask, cur_count, location):
         # Set lap state variable to 1, disable the detector, and create the event
         self.variables['lap'] = 1
+        self.variables['is_started'] = True
         self.deactivate()
         timestamp = np.floor(cur_count / self.variables['frame_rate'])
         self.create_event(event_type='Laps',
