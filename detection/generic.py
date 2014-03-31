@@ -205,6 +205,9 @@ class Engine():
                 self.barrier.wait()
                 self.cleanup()
                 return self.variables
+            except:
+                # Any other exception is bad!
+                return None
 
     def clear_buffer(self, offset):
         """Cleans up the rest of the buffer
