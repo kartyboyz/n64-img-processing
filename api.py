@@ -11,8 +11,8 @@ from const import *
 import phase_0
 import phase_1
 
-WAIT = 5
-JOBS = list()
+WAIT = 5        # SQS timeout
+JOBS = list()   # Container for all active jobs
 
 class SQS(object):
     def __init__(self, queue_names):
@@ -29,10 +29,9 @@ class SQS(object):
             video_id = str(msg['id'])
             function = JOB_MAP[queue_name]
             rv = {'function': function, 'msg':raw_msg,'id':video_id,'url':url}
-            print rv
             return rv
         except:
-            # No messages
+            # No messages on queue
             return None
 
 
@@ -64,30 +63,46 @@ class S3(object):
         finally:
             return filename
 
-def cleanup():
-    for worker in JOBS:
-        worker.join()
 
 def split_session(session_id, url, rv_queue):
-    print "%s: Downloading #%s from %s" % ('split-session', session_id, url)
-    video_file = s3.download_url('session', url, session_id)
-    if video_file is not None:
-        # Process
-        print video_file
-        rv = phase_0.main(int(session_id), open(video_file))
-        rv_queue.put(rv)
-    else:
-        # No video
+    try:
+        video_file = s3.download_url('session', url, session_id)
+        if video_file is not None:
+            # Process
+            rv = phase_0.main(int(session_id), open(video_file))
+            # Split session, update DB
+            # Cleanup
+            rv_queue.put(rv)
+        else:
+            # No video
+            rv_queue.put(None)
+    except KeyboardInterrupt:
         rv_queue.put(None)
 
-def process_race(race_id, url):
-    pass
+def process_race(race_id, url, rv_queue):
+    try:
+        video_file = s3.download_url('race', url, race_id)
+        if video_file is not None:
+            rv = phase_1.main(int(race_id), open(video_file))
+            # Send events to database
+            # Cleanup
+            rv_queue.put(rv)
+        else:
+            rv_queue.put(None)
+    except KeyboardInterrupt:
+        rv_queue.put(None)
 
-JOB_MAP = {'split-queue' : globals()["split_session"], 'process-queue' : globals()["process_race"]}
+
+JOB_MAP = {
+            'split-queue' : globals()["split_session"],
+            'process-queue' : globals()["process_race"]
+          }
+
 
 if __name__ == '__main__':
     sqs = SQS(QUEUES)
     s3 = S3(BUCKETS)
+    # Multiproc. queue needed for IPC
     rv_queue = multiprocessing.Queue()
 
     # Listen & dispatch jobs
@@ -95,18 +110,22 @@ if __name__ == '__main__':
         try:
             for q in QUEUES:
                 # Check for phase0 jobs
-                print q
                 job = sqs.listen(q)
                 if job is not None:
                     worker = multiprocessing.Process(target=job['function'],
                                                      args=(job['id'], job['url'], rv_queue))
                     worker.start()
                     JOBS.append(worker)
-                    rv = rv_queue.get()
+                    # Wait for job to complete
                     worker.join()
+                    rv = rv_queue.get()
                     #if rv is not None:
                     #    sqs.delete_message(job['msg'])
             time.sleep(WAIT)
         except KeyboardInterrupt:
             cleanup()
             exit()
+
+def cleanup():
+    for worker in JOBS:
+        worker.join()

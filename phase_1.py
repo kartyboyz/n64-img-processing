@@ -4,18 +4,6 @@
 Initial phase of detection, designed to generate data regarding
 starts/ends of races in a MK64 gameplay video & send it back to the DB
 
-Required Detectors:
-    BlackFrame
-        Used for optimization (skipping frames) and
-        to determine rage-quits/end of race
-    BoxExtractor
-        Generates "box" data for Workers
-    Characters
-        Evaluates the characters chosen for the given race
-    StartRace
-        Finds Lakitu who indicates the start of a race
-    EndRace
-        Wrapper around BlackFrame to determine the end of a race
 """
 
 import sys
@@ -68,9 +56,9 @@ def main(session_id, video_file):
     ENGINE.add_detectors([BLACK, ITEMS])
 
     """Main"""
-    ENGINE.process()
-    ENGINE.cleanup()
-    print VARIABLES[0]['events']
+    rv = ENGINE.process()
+    return rv
+
 
 def instructions():
     print "Debugger's Instructions:"
@@ -79,9 +67,9 @@ def instructions():
 
 if __name__ == '__main__':
     if len(sys.argv) is not 3:
-        print "Please specify a session ID and video file."
+        print "Please specify a race ID and video file."
         print "Usage:"
-        print "%s <session ID> <video source>" % (sys.argv[0])
+        print "%s <race ID> <video source>" % (sys.argv[0])
         exit(-1)
     instructions()
     main(int(sys.argv[1]), open(sys.argv[2]))
