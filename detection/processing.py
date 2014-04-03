@@ -304,11 +304,15 @@ class Items(Detector):
         self.prev_item = ''
         super(Items, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
 
+    def process(self, frame, cur_count, player):
+        frame = cv.GaussianBlur(frame, (3, 3), 1)
+        super(Items, self).process(frame, cur_count, player)
+
     def handle(self, frame, player, mask, cur_count, location):
         blank = 'blank_box.png' # Name of image containing blank item box
         self.buffer.append(mask[1])
         cur_item = self.buffer[len(self.buffer) - 2]
-        # Sorry for the gross if-statemen :-(
+        # If this detection was a blank box and the last was not, continue with checks
         if len(self.buffer) > 1 and mask[1] == blank and cur_item != blank:
             timestamp = cur_count / self.variables['frame_rate']
             if not self.past_timestamp:
@@ -325,11 +329,11 @@ class Items(Detector):
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
 
-            # If it has been more than a second since the last event and all items besides the last item
-            # in the buffer are the same, we can make the next check. Else, do nothing.
-            elif (timestamp - self.past_timestamp) > 1 and self.buffer.count(self.buffer[0]) != (len(self.buffer) - 1):
-                # If the current item is a single mushroom and the previous item was triple mushroom, do nothing.
-                if not (cur_item == 'boost_1.png' and self.prev_item == 'boost_3'):
+            # Has been more than a second since the last event
+            elif (timestamp - self.past_timestamp) > 1:
+                # Was the last item boo? If so, the item received can only be detected on use.
+                # Therefore, it doesn't matter if every item in the buffer is the same besides the last element.
+                if self.prev_item == 'boo.png':
                     # Create an event
                     self.create_event(event_type=self.name(),
                                       event_subtype='Item Get',
@@ -341,6 +345,21 @@ class Items(Detector):
                     self.buffer.clear()
                     if DEBUG_LEVEL > 0:
                         print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
+                # Are all items besides the last item in the buffer equal
+                elif self.buffer.count(self.buffer[0]) != (len(self.buffer) - 1):
+                    # If the current item is a single mushroom and the previous item was triple mushroom, do nothing.
+                    if not (cur_item == 'boost_1.png' and self.prev_item == 'boost_3'):
+                        # Create an event
+                        self.create_event(event_type=self.name(),
+                                          event_subtype='Item Get',
+                                          timestamp=np.floor(timestamp),
+                                          player=player,
+                                          lap=self.variables['lap'],
+                                          place=self.variables['place'],
+                                          info="Player received a %s" % (cur_item.split('.')[0]))
+                        self.buffer.clear()
+                        if DEBUG_LEVEL > 0:
+                            print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
                 self.prev_item = cur_item
             self.past_timestamp = timestamp
 
