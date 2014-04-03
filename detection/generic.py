@@ -35,6 +35,7 @@ class Detector(object):
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
         self.detector_states = None #To be filled in by setter
+        self.past_timestamp = 0.0 # To be used for debouncing events
 
     def name(self):
         return self.__class__.__name__

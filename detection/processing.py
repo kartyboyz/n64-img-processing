@@ -22,6 +22,7 @@ class Shortcut(Detector):
     """
     def __init__(self, variables):
         self.variables = variables
+        self.past_timestamp = 0.0 # To be used for debouncing events
 
     def detect(self, frame, cur_count, player):
         if self.variables['is_started']:
@@ -36,24 +37,40 @@ class Shortcut(Detector):
         black_count = float(np.sum(gray)) / float(gray.size)
         # If at least 80% of the frame is true black, race has stopped
         if black_count <= float(20):
-            print black_count
             self.handle(frame, player, cur_count)
+            if DEBUG_LEVEL > 1:
+                print black_count
         if DEBUG_LEVEL > 1:
             cv.imshow('thresh', gray)
             cv.waitKey(1)
 
     def handle(self, frame, player, cur_count):
         # Create event
-        timestamp = np.floor(cur_count / self.variables['frame_rate'])
-        self.create_event(event_type=self.name(),
-                          event_subtype=self.name(),
-                          timestamp=timestamp,
-                          player=player,
-                          lap=self.variables['lap'],
-                          place=self.variables['place'],
-                          info="In shortcut cave")
-        if DEBUG_LEVEL > 0:
-            print "[%s]: Shortcut detected" % (self.name())
+        timestamp = cur_count / self.variables['frame_rate']
+        # First timestamp?
+        if not self.past_timestamp:
+            self.past_timestamp = timestamp
+            self.create_event(event_type=self.name(),
+                            event_subtype=self.name(),
+                            timestamp=np.floor(timestamp),
+                            player=player,
+                            lap=self.variables['lap'],
+                            place=self.variables['place'],
+                            info="In shortcut cave")
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
+        # Does it meet the specifications for debouncing?
+        elif (timestamp - self.past_timestamp) > 10.0:
+            self.past_timestamp = timestamp
+            self.create_event(event_type=self.name(),
+                            event_subtype=self.name(),
+                            timestamp=np.floor(timestamp),
+                            player=player,
+                            lap=self.variables['lap'],
+                            place=self.variables['place'],
+                            info="In shortcut cave")
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
 
 
 
@@ -113,10 +130,10 @@ class FinishRace(Detector):
         self.deactivate()
         self.deactivate('PositionChange')
         self.variables['place'] = int(mask[1].split('_')[0])
-        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        timestamp = cur_count / self.variables['frame_rate']
         self.create_event(event_type='Laps',
                           event_subtype=self.name(),
-                          timestamp=timestamp,
+                          timestamp=np.floor(timestamp),
                           player=player,
                           lap=self.variables['lap'],
                           place=self.variables['place'],
@@ -181,13 +198,13 @@ class PositionChange(Detector):
         # Append the mask '#_place.png' to the ring buffer
         self.buffer.append(mask[1])
         # If this is the first place that is given, store it
-        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        timestamp = cur_count / self.variables['frame_rate']
         if len(self.buffer) == 1:
             # Update place state variable and create an event
             self.variables['place'] = int(mask[1].split('_')[0])
             self.create_event(event_type=self.name(),
                               event_subtype='Initial',
-                              timestamp=timestamp,
+                              timestamp=np.floor(timestamp),
                               player=player,
                               lap=self.variables['lap'],
                               place=self.variables['place'],
@@ -226,20 +243,37 @@ class Collisions(Detector):
     def handle(self, frame, player, mask, cur_count, location):
         # TODO/xxx: debounce hits
         # Create an event
-        timestamp = np.floor(cur_count / self.variables['frame_rate'])
-        if 'banana' in mask[1]:
-            subtype = 'Banana'
-        else:
-            subtype = 'Shell or Bomb'
-        self.create_event(event_type=self.name(),
-                          event_subtype=subtype,
-                          timestamp=timestamp,
-                          player=player,
-                          lap=self.variables['lap'],
-                          place=self.variables['place'],
-                          info="Player collided with an object")
-        if DEBUG_LEVEL > 0:
-            print "[%s]: Player %s was hit with an item or bomb-omb" % (self.name(), player)
+        timestamp = cur_count / self.variables['frame_rate']
+        if not self.past_timestamp:
+            self.past_timestamp = timestamp
+            if 'banana' in mask[1]:
+                subtype = 'Banana'
+            else:
+                subtype = 'Shell or Bomb'
+            self.create_event(event_type=self.name(),
+                              event_subtype=subtype,
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player collided with an object")
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s was hit with an item or bomb-omb" % (self.name(), player)
+        elif (timestamp - self.past_timestamp) > 2.0:
+            self.past_timestamp = timestamp
+            if 'banana' in mask[1]:
+                subtype = 'Banana'
+            else:
+                subtype = 'Shell or Bomb'
+            self.create_event(event_type=self.name(),
+                              event_subtype=subtype,
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player collided with an object")
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s was hit with an item or bomb-omb" % (self.name(), player)
 
 
 class Laps(Detector):
@@ -252,10 +286,10 @@ class Laps(Detector):
         # TODO/xxx: debounce hits
         # Increment the lap state variable and create an event
         self.variables['lap'] += 1
-        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        timestamp = cur_count / self.variables['frame_rate']
         self.create_event(event_type='Lap',
                           event_subtype='Lap Change',
-                          timestamp=timestamp,
+                          timestamp=np.floor(timestamp),
                           player=player,
                           lap=self.variables['lap'],
                           place=self.variables['place'],
@@ -266,25 +300,49 @@ class Laps(Detector):
 
 class Items(Detector):
     """Detector for MK64 items"""
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+        self.prev_item = ''
+        super(Items, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
+
     def handle(self, frame, player, mask, cur_count, location):
         blank = 'blank_box.png' # Name of image containing blank item box
         self.buffer.append(mask[1])
-        last_item = self.buffer[len(self.buffer) - 2]
+        cur_item = self.buffer[len(self.buffer) - 2]
         # Sorry for the gross if-statemen :-(
-        if len(self.buffer) > 1 and mask[1] == blank and last_item != blank:
-            # Create an event
-            timestamp = np.floor(cur_count / self.variables['frame_rate'])
-            self.create_event(event_type=self.name(),
-                              event_subtype='Item Get',
-                              timestamp=timestamp,
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info="Player received a %s" % (last_item.split('.')[0]))
-            self.buffer.clear()
-            if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s has %s" % (self.name(), player, last_item)
-                cv.imshow('frame', frame)
+        if len(self.buffer) > 1 and mask[1] == blank and cur_item != blank:
+            timestamp = cur_count / self.variables['frame_rate']
+            if not self.past_timestamp:
+                # Create an event
+                self.create_event(event_type=self.name(),
+                                  event_subtype='Item Get',
+                                  timestamp=np.floor(timestamp),
+                                  player=player,
+                                  lap=self.variables['lap'],
+                                  place=self.variables['place'],
+                                  info="Player received a %s" % (cur_item.split('.')[0]))
+                self.prev_item = cur_item
+                self.buffer.clear()
+                if DEBUG_LEVEL > 0:
+                    print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
+
+            # If it has been more than a second since the last event and all items besides the last item
+            # in the buffer are the same, we can make the next check. Else, do nothing.
+            elif (timestamp - self.past_timestamp) > 1 and self.buffer.count(self.buffer[0]) != (len(self.buffer) - 1):
+                # If the current item is a single mushroom and the previous item was triple mushroom, do nothing.
+                if not (cur_item == 'boost_1.png' and self.prev_item == 'boost_3'):
+                    # Create an event
+                    self.create_event(event_type=self.name(),
+                                      event_subtype='Item Get',
+                                      timestamp=np.floor(timestamp),
+                                      player=player,
+                                      lap=self.variables['lap'],
+                                      place=self.variables['place'],
+                                      info="Player received a %s" % (cur_item.split('.')[0]))
+                    self.buffer.clear()
+                    if DEBUG_LEVEL > 0:
+                        print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
+                self.prev_item = cur_item
+            self.past_timestamp = timestamp
 
 
 class BeginRace(Detector):
@@ -294,10 +352,10 @@ class BeginRace(Detector):
         self.variables['lap'] = 1
         self.variables['is_started'] = True
         self.deactivate()
-        timestamp = np.floor(cur_count / self.variables['frame_rate'])
+        timestamp = cur_count / self.variables['frame_rate']
         self.create_event(event_type='Laps',
                           event_subtype=self.name(),
-                          timestamp=timestamp,
+                          timestamp=np.floor(timestamp),
                           player=player,
                           lap=self.variables['lap'],
                           place=0,
