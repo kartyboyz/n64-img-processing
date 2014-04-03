@@ -32,20 +32,20 @@ def main(session_id, video_file):
     """Detector Setup"""
     BLACK = detection.BlackFrame(variables=VARIABLES)
     BOXES = detection.BoxExtractor(variables=VARIABLES)
-    ITEMS = detection.Items(masks_dir='./high_res_masks/item_masks/',
+    ITEMS = detection.Items(masks_dir='./masks/items/',
                             freq=1,
                             threshold=0.16,
                             default_shape=[(237, 314, 3)],
                             variables=VARIABLES,
                             buf_len=8)
     #TODO Fix thresh. for CHARS
-    CHARS = detection.Characters(masks_dir='./high_res_masks/char_masks/',
+    CHARS = detection.Characters(masks_dir='./masks/chars/',
                                  freq=1,
                                  threshold=0.10,
                                  default_shape=[(333, 318, 3)],
                                  variables=VARIABLES,
                                  buf_len=8)
-    START_RACE = detection.StartRace(masks_dir='./high_res_masks/start_masks/',
+    START_RACE = detection.StartRace(masks_dir='./masks/start/',
                                      freq=1,
                                      threshold=0.17,
                                      default_shape=[(237, 318, 3), (237, 344, 3)],
