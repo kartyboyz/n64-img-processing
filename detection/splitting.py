@@ -45,14 +45,15 @@ class BoxExtractor(Detector):
 
         if utility.in_range(len(points[0]), 0, 2) and \
            utility.in_range(len(points[1]), 0, 2):
-            self.variables['player_boxes'][:] = []
+            self.variables['player_regions'][:] = []
             local = list()
             for coord in itertools.product(points[0], points[1]):
-                local.append([(coord[0][0], coord[0][1]), (coord[1][0], coord[1][1])])
-            self.variables['player_boxes'] = self.sort_boxes(local, cur_frame)
+                local.append([(int(str(coord[0][0]), 10), int(str(coord[0][1]), 10)),
+                              (int(str(coord[1][0]), 10), int(str(coord[1][1]), 10))])
+            self.variables['player_regions'] = self.sort_boxes(local, cur_frame)
         else:
             # Completely black frame
-            self.variables['player_boxes'] = [[(0, cur_frame.shape[1]), (0, cur_frame.shape[0])]]
+            self.variables['player_regions'] = [[(0, cur_frame.shape[1]), (0, cur_frame.shape[0])]]
 
     def sort_boxes(self, boxes, cur_frame):
         """Sorting algorithm that places priority on "top left" boxes"""
@@ -100,11 +101,8 @@ class Characters(Detector):
 
         characters = utility.find_unique(self.buffer, 0)
         ordered = self.sort_characters(characters)
-        for player, image in enumerate(ordered):
-            char = image[0].rsplit(".", 1)[0]
-            self.variables["p" + str(player + 1)] = char
-            if DEBUG_LEVEL > 0:
-                print "[%s]: Player %d is %s!" % (self.name(), player + 1, char)
+        chars = [image[0].rsplit(".", 1)[0] for image in ordered]
+        self.variables['characters'] = chars
         self.variables['num_players'] = len(ordered)
 
     def sort_characters(self, characters):
@@ -141,7 +139,7 @@ class StartRace(Detector):
             self.deactivate('BoxExtractor')
             self.deactivate('Map')
             # Lock in player boxes (should be sorted alreadY)
-            self.variables['player_boxes'] = self.variables['player_boxes']
+            self.variables['player_regions'] = self.variables['player_regions']
             # Populate dictionary with start time
             self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 2
             if DEBUG_LEVEL > 0:

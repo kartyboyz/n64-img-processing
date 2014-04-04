@@ -28,6 +28,7 @@ from subprocess import call
 def main(session_id, video_file):
     """Configuration Variables/Data Setup"""
     VARIABLES = [detection.config.race]
+    VARIABLES[0]['session_id'] = session_id
 
     """Detector Setup"""
     BLACK = detection.BlackFrame(variables=VARIABLES)
@@ -61,21 +62,12 @@ def main(session_id, video_file):
 
     """Main"""
     rv = ENGINE.process()
-    for ii in xrange(len(VARIABLES[0]['events'])):
-        dst = './sample_video/top_secret_test_boyz/race_split' + str(ii) + '.mov'
-        split_video(video_file.name, dst,
-            VARIABLES[0]['events'][ii]['start_time'], VARIABLES[0]['events'][ii]['duration'])
+    return rv
 
 def instructions():
     print "Debugger's Instructions:"
     print "\t<ESC> exits program"
     print "\t<space> pauses/unpauses current frame\n\n"
-
-
-def split_video(src, dst, start, end):
-    command = ['ffmpeg', '-i', src, 
-            '-ss', str(start), '-t', str(end), dst ]
-    call(command)
 
 
 if __name__ == '__main__':

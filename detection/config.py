@@ -14,14 +14,11 @@ race = multiprocessing.Manager().dict({
         'num_players' : 0,
         'start_time' : 0,
         'duration' : 0,
-        'p1' : "",
-        'p2' : "",
-        'p3' : "",
-        'p4' : "",
+        'characters' : list(),
         'is_started' : False,
         'is_black' : False,
         'map' : "",
-        'player_boxes' : list(),
+        'player_regions' : list(),
         'events' : list()
         })
 
