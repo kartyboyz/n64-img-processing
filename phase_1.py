@@ -10,10 +10,9 @@ import sys
 
 import detection
 
-def main(session_id, video_file):
+def main(player_regions, video_file):
     """Configuration Variables/Data Setup"""
-    VARIABLES = [detection.config.player]
-
+    VARIABLES = [detection.config.player for _ in range(len(player_regions))]
     """Detector Setup"""
     BLACK = detection.BlackFrame(variables=VARIABLES)
     ITEMS = detection.Items(masks_dir='./masks/items/',
@@ -39,21 +38,11 @@ def main(session_id, video_file):
                                             variables=VARIABLES,
                                             buf_len=2)
     SHORTCUT = detection.Shortcut(variables=VARIABLES)
-    COLLISION = detection.Collisions(masks_dir='./masks/collisions/',
-                                    freq=1,
-                                    threshold=0.07,
-                                    default_shape=[(237,314,3)],
-                                    variables=VARIABLES)
-    LAP = detection.Laps(masks_dir='./masks/laps/',
-                                    freq=1,
-                                    threshold=0.02,
-                                    default_shape=[(237,314,3)],
-                                    variables=VARIABLES)
-    """Engine Setup"""
+
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
-    ENGINE.setup_processes(num=1, regions=[[(4, 316), (0, 238)]])
-    ENGINE.add_detectors([BLACK, ITEMS])
+    ENGINE.setup_processes(num=len(player_regions), regions=player_regions)
+    ENGINE.add_detectors([BLACK])
 
     """Main"""
     rv = ENGINE.process()

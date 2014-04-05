@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""API around S3, SQS, and database"""
+"""API around S3, SQS, and MK64 database"""
 import boto
 import json
 import multiprocessing
@@ -9,7 +9,9 @@ import time
 import uuid
 
 from subprocess import call
+from boto.sqs.message import Message
 from boto.sqs.message import RawMessage
+from boto.exception import *
 
 from const import *
 
@@ -19,24 +21,33 @@ class SQS(object):
                                      AWS_SECRET_ACCESS_KEY)
         self.queues = {q : self.conn.get_queue(q) for q in queue_names}
 
+    def delete_message(self, msg):
+        return msg.delete()
+
     def listen(self, queue_name):
         try:
             q = self.queues[queue_name]
-            print 'listening on'
-            print q
-            raw_msg = RawMessage
             raw_msg = q.get_messages(wait_time_seconds=WAIT)[0]
             print raw_msg.get_body()
             msg = json.loads(raw_msg.get_body())
-            print msg
             url = str(msg['video_url'])
-            print url
             video_id = str(msg['id'])
-            print video_id
             rv = {'msg':raw_msg,'id':video_id,'url':url}
             return rv
+        except UnicodeDecodeError:
+            print "JSON Dumps failed"
+            filename = None
         except:
             # No messages
+            return None
+
+    def write(self, queue_name, payload):
+        try:
+            msg = Message()
+            msg.set_body(payload)
+            return self.queues[queue_name].write(msg)
+        except SQSError:
+            print "Could not write to queue %s" % (queue_name)
             return None
 
 class S3(object):
@@ -56,10 +67,10 @@ class S3(object):
         filename = None
         if 'race' in video_type:
             name = 'race-videos'
-            key_name = video_url.split('.com/race-videos/')[-1]
+            key_name = video_url.split('.com/')[-1]
         elif 'session' in video_type:
             name = 'session-videos'
-            key_name = video_url.split('.com/session-videos/')[-1]
+            key_name = video_url.split('.com/')[-1]
         else:
             raise ValueError("Invalid video type")
         try:
@@ -71,43 +82,51 @@ class S3(object):
             ext = video_url.split('.')[-1]
             print ext
             filename = '%s%s.%s' % (name, video_id, ext)
+            print filename
             key.get_contents_to_filename(filename)
-        except ValueError as e:
+        except:
             print "Please specify either 'race-*' or 'session-*' as the type"
+            filename = None
         finally:
             return filename
 
 class DB(object):
     def __init__(self):
-        self.server = 'http://n64storageflask-env.elasticbeanstalk.com'
+        self.database = 'http://n64storageflask-env.elasticbeanstalk.com'
         self.port = 80
 
-    def get_session(self, session_id=0):
-        """Communicates with database to extract information for a given session
+    def get_regions(self, race_id):
+        url = '%s:%d/races/%d' % (self.database, self.port, race_id)
+        res = requests.get(url)
+        print res
+        if res.ok:
+            return res.json()['player_regions']
+        else:
+            print res.json()['message']
+            return None
 
-        If session_id == 0, returns all sessions in database
-        """
-        session = '/sessions'
-        if session_id is not 0:
-            session += '/' + str(session_id)
-        payload = '%s:%d%s' % (self.server, self.port, session)
-        response = requests.get(payload)
-        print response.text
-        return response
+    def post_events(self, race_id, events):
+        url = '%s:%d/races/%d/events' % (self.database, self.port, race_id)
+        for e in events:
+            payload = json.dumps(e)
+            print payload
+            header = {'Content-Type': 'application/json'}
+            res = requests.post(url, data=payload, headers=header)
+            print res
+            if res.ok:
+                return res.json()['id']
+            else:
+                print res.json()['message']
+                return None
 
-    def get_races(self, session_id):
-        """Communicates with database to extract information about races in session"""
-        path = '/sessions/%d/races' % (session_id)
-        payload = '%s:%d%s' % (self.server, self.port, path)
-        response = requests.get(payload) # response.text contains the readable string
-        return response
-
-    def put_race(self,session_id, payload):
+    def post_race(self, session_id, payload):
         """Sends race JSON object to database for storage"""
-        url = '%s:%d/sessions/%d/races' % (self.server, self.port, session_id)
+        url = '%s:%d/sessions/%d/races' % (self.database, self.port, session_id)
         headers = {'content-type': 'application/json'}
-        print payload
-        print type(payload['player_regions'][0][0][0])
         json_payload = json.dumps(payload)
-        response = requests.post(url, data=json.dumps(payload), headers=headers)
-        return response
+        res = requests.post(url, data=json.dumps(payload), headers=headers)
+        if res.ok:
+            return res.json()['id']
+        else:
+            print res.json()['message']
+            return None
