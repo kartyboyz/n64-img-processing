@@ -77,42 +77,106 @@ class Characters(Detector):
         super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
 
     def detect(self, frame, cur_count):
+        height, width, _ = frame.shape
+        focus_region = frame[np.ceil(height * 0.25) : np.ceil(height * 0.95),
+                        np.ceil(width * 0.25) : np.ceil(width * 0.75)]
         if self.variables['is_black']:
             if self.waiting_black:
-                self.store_players()
+                self.store_players(focus_region)
             else:
                 return
         if not self.variables['is_started'] and (cur_count % self.freq == 0):
-            height, width, _ = frame.shape
-            focus_region = frame[np.ceil(height * 0.25) : np.ceil(height * 0.95),
-                                 np.ceil(width * 0.25) : np.ceil(width * 0.75)]
             self.process(focus_region, cur_count, 0)
             if DEBUG_LEVEL > 1:
                 cv.imshow(self.name(), focus_region)
                 cv.waitKey(1)
 
+    def process(self, frame, cur_count, player):
+        """ Compares pre-loaded masks to current frame"""
+        player = 0
+        if len(self.default_shape) != 1:
+            for mask, shape in zip(self.masks, self.default_shape):
+                if frame.shape != shape:
+                    scaled_mask = (utility.scaleImage(frame,mask[0], shape), mask[1])
+                else:
+                    scaled_mask = mask
+                distances = cv.matchTemplate(frame, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                minval, _, minloc, _ = cv.minMaxLoc(distances)
+                if minval <= self.threshold:
+                    self.handle(frame, player, mask, cur_count, minloc)
+                    if DEBUG_LEVEL > 0:
+                        print "[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval)
+        else:
+            for mask in self.masks:
+                if frame.shape != self.default_shape[0]:
+                    scaled_mask = (utility.scaleImage(frame,mask[0], self.default_shape[0]), mask[1])
+                else:
+                    scaled_mask = mask
+                distances = cv.matchTemplate(frame, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                minval, _, minloc, _ = cv.minMaxLoc(distances)
+                if minval <= self.threshold:
+                    self.handle(frame, player, mask, cur_count, minloc)
+                    if DEBUG_LEVEL > 0:
+                        print "[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval)
+
     def handle(self, frame, player, mask, cur_count, location):
         self.waiting_black = True
-        self.buffer.append((mask[1], location))
+        timestamp = cur_count / self.variables['frame_rate']
+        idx = self.buffer.exists(mask[1])
+        if idx != -1:
+            self.buffer[idx] = (mask[1], location, timestamp)
+        else:
+            self.buffer.append((mask[1], location, timestamp))
 
-    def store_players(self):
+    def store_players(self, frame):
         self.waiting_black = False
-        self.detector_states[self.name()] = False
-
+        self.deactivate()
+        ordered = list()
+        max_place = 0
         characters = utility.find_unique(self.buffer, 0)
+<<<<<<< HEAD
         ordered = self.sort_characters(characters)
         chars = [image[0].rsplit(".", 1)[0] for image in ordered]
         self.variables['characters'] = chars
+        semi_ordered = self.sort_characters(characters, frame)
+        print semi_ordered
+        # Find the largest rank in the list.
+        for element in semi_ordered:
+            if element[1] > max_place:
+                max_place = element[1]
+
+        # For every possible player number, find the most recent match
+        for ii in xrange(1, (max_place + 1)):
+            timestamp = 0
+            for element in semi_ordered:
+                # Check if the char is player ii and if it was found after <timestamp>
+                if element[1] == ii and element[2] > timestamp:
+                    timestamp = element[2]
+                    temp = (element[0], element[1])
+            ordered.append(temp)
+        # Lock the players in
+        chars = [player[0].split('.')[0] for player in ordered]
+        if DEBUG_LEVEL > 1:
+            for p, ch in enumerate(chars):
+                print "Player %i is %s" % ((p+1), ch)
         self.variables['num_players'] = len(ordered)
 
-    def sort_characters(self, characters):
-        """Sorting algorithm which places priority on "top left" players"""
+    def sort_characters(self, characters, frame):
+        """Sorting algorithm that ranks based on quadrant"""
         ordered = list()
-        upper = np.max(characters.values()).astype(float)
+        center_y, center_x, _ = frame.shape
+        center_x /= 2
+        center_y /= 2
         for char in characters:
-            loc_normed = characters[char] / upper
-            rank = 10 * loc_normed[0] + 100 * loc_normed[1]
-            ordered.append((char, rank))
+            # Quadrant 2 (Player 1)
+            if characters[char][0][1] < (center_x - 10) and characters[char][0][0] < (center_y - 10):
+                ordered.append((char, 1, characters[char][1]))
+            elif characters[char][0][1] > (center_x + 10) and characters[char][0][0] < (center_y - 10):
+                ordered.append((char, 2, characters[char][1]))
+            elif characters[char][0][1] < (center_x - 10) and characters[char][0][0] > (center_y + 10):
+                ordered.append((char, 3, characters[char][1]))
+            else:
+                ordered.append((char, 4, characters[char][1]))
         ordered = sorted(ordered, key=lambda x: x[1])
         return ordered
 
@@ -159,15 +223,13 @@ class EndRace(Detector):
                 # Either rage-quit or clean race finish (we'll handle rage quits later)
                 self.handle(cur_count)
         else:
-            self.detector_states[self.name()] = False
+            self.deactivate()
 
     def handle(self, cur_count):
         self.variables['is_started'] = False
         # Populate dictionary with race duration
         self.variables['duration'] = np.ceil((cur_count / self.variables['frame_rate']) - self.variables['start_time'])
         self.variables['events'].append([(self.variables['start_time'], self.variables['duration'])])
-        print self.variables['events']
-
         # On end race, deactivate EndRaceDetector, activate StartRaceDetector and CharDetector
         self.deactivate()
         self.activate('StartRace')
@@ -183,6 +245,5 @@ class EndRace(Detector):
                 # UH OH!
                 pass
         else:
-            print self.detector_states
             print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.variables['duration'])
 

@@ -25,6 +25,8 @@ class Detector(object):
             raise Exception("<Detector> should be subclassed.")
         self.masks = [(cv.imread(masks_dir+name), name)
                       for name in os.listdir(masks_dir)]
+        for ii in xrange(len(self.masks)):
+            self.masks[ii] = (cv.GaussianBlur(self.masks[ii][0], (3, 3), 1), self.masks[ii][1])
         self.freq = freq
         self.threshold = threshold
         if len(default_shape) != 1 and len(default_shape) != len(self.masks):
@@ -78,6 +80,7 @@ class Detector(object):
     def detect(self, frame, cur_count, player):
         """ Determines whether and how to process current frame"""
         if cur_count % self.freq is 0:
+            frame = cv.GaussianBlur(frame, (3, 3), 1)
             self.process(frame, cur_count, player)
 
     def process(self, frame, cur_count, player):
@@ -98,7 +101,7 @@ class Detector(object):
             player = 0 #TODO: Remove this shit
             if best_mask is not None:
                 self.handle(frame, player, best_mask, cur_count, minloc)
-                if DEBUG_LEVEL > 0:
+                if DEBUG_LEVEL > 1:
                     print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
         else:
             for mask in self.masks:
@@ -114,7 +117,7 @@ class Detector(object):
             player = 0 #TODO: Remove this shit
             if best_mask is not None:
                 self.handle(frame, player, best_mask, cur_count, minloc)
-                if DEBUG_LEVEL > 0:
+                if DEBUG_LEVEL > 1:
                     print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
 
     def handle(self, frame, player, mask, cur_count, location):
@@ -155,8 +158,6 @@ class Engine():
         self.capture = cv.VideoCapture(video_source)
         self.ret, self.frame = self.capture.read()
 
-        for _ in range(len(variables)):
-            variables[0]['frame_rate'] = self.capture.get(cv1.CV_CAP_PROP_FPS)
         self.variables = variables
         self.barrier = None
         self.manager = None

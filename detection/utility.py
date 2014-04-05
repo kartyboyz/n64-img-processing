@@ -184,16 +184,17 @@ class RingBuffer(deque):
             return False;
 
     def exists(self, item):
-        if self.count(item) > 0:
-            return True
-        else:
-            return False
+        '''
+        Determines if an item exists in the buffer. If so, return the index. 
+        Else, return -1.
+        '''
+        for ii in xrange(len(self)):
+            if item == self[ii][0]:
+                return ii
+        return -1
 
     def tolist(self):
         return list(self)
-
-    def fuck(self):
-        print self.__max_size
 
 
 def find_unique(container, index):
@@ -206,5 +207,5 @@ def find_unique(container, index):
     if index is not None:
         for thing in container:
             if not results.has_key(thing[index]):
-                results[thing[index]] = thing[index + 1]
+                results[thing[index]] = (thing[index + 1], thing[index + 2])
     return results

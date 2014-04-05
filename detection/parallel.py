@@ -25,6 +25,7 @@ class Worker(multiprocessing.Process):
         multiprocessing.Process.__init__(self)
         self.variables = variables
         self.shared = shared_memory
+        self.cached = dict()
         self.barrier = barrier
         self.bounds = bounds
         self.shape = shape
@@ -88,11 +89,22 @@ class Worker(multiprocessing.Process):
                             cv.FONT_HERSHEY_SIMPLEX, 1,
                             (50,255, 50), 2, 1)
                     cv.imshow("[%s]" % self.name, dbg)
-                    key = cv.waitKey(self.toggle)
+                    key = cv.waitKey(1)
                     if key is 27:
                         return
+                    # For debugging
                     elif key is 32:
                         self.toggle ^= 1
+                        if not self.toggle:
+                            self.cached = copy.deepcopy(self.detector_states)
+                            for detector in self.detectors:
+                                detector.deactivate()
+                        else:
+                            for state in self.cached:
+                                if self.cached[state]:
+                                    self.detector_states[state] = True
+                            
+
 
                 # NOTE: This section is our current bottleneck.
                 # Unfortunately it's a pretty big one, and it's due to OpenCV's matchTemplate()

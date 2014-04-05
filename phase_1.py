@@ -24,7 +24,7 @@ def main(player_regions, video_file):
     BEGIN_RACE = detection.BeginRace(masks_dir='./masks/start/',
                                      freq=1,
                                      threshold=0.16,
-                                     default_shape=[(237, 318, 3), (237, 344, 3)],
+                                     default_shape=[(237, 314, 3), (237, 344, 3)],
                                      variables=VARIABLES)
     FINISH_RACE = detection.FinishRace(masks_dir='./masks/finish/',
                                     freq=1,
