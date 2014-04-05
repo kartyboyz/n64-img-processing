@@ -25,7 +25,7 @@ def main(session_id, video_file):
     BEGIN_RACE = detection.BeginRace(masks_dir='./masks/start/',
                                      freq=1,
                                      threshold=0.16,
-                                     default_shape=[(237, 318, 3), (237, 344, 3)],
+                                     default_shape=[(237, 314, 3), (237, 344, 3)],
                                      variables=VARIABLES)
     FINISH_RACE = detection.FinishRace(masks_dir='./masks/finish/',
                                     freq=1,
@@ -52,8 +52,8 @@ def main(session_id, video_file):
     """Engine Setup"""
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
-    ENGINE.setup_processes(num=1, regions=[[(4, 316), (0, 238)]])
-    ENGINE.add_detectors([BLACK, ITEMS])
+    ENGINE.setup_processes(num=1, regions=[[(4, 317), (0, 237)]])
+    ENGINE.add_detectors([BLACK, POSITION_CHANGE])
 
     """Main"""
     rv = ENGINE.process()

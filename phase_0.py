@@ -57,7 +57,7 @@ def main(session_id, video_file):
                               video_source=video_file.name)
     ENGINE.setup_processes(num=1,
                            regions=[None])
-    ENGINE.add_detectors([BLACK, BOXES, START_RACE, END_RACE])
+    ENGINE.add_detectors([BLACK, BOXES, START_RACE, CHARS, END_RACE])
 
     """Main"""
     rv = ENGINE.process()
