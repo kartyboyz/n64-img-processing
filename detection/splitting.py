@@ -134,12 +134,8 @@ class Characters(Detector):
         ordered = list()
         max_place = 0
         characters = utility.find_unique(self.buffer, 0)
-<<<<<<< HEAD
-        ordered = self.sort_characters(characters)
-        chars = [image[0].rsplit(".", 1)[0] for image in ordered]
-        self.variables['characters'] = chars
+
         semi_ordered = self.sort_characters(characters, frame)
-        print semi_ordered
         # Find the largest rank in the list.
         for element in semi_ordered:
             if element[1] > max_place:
@@ -154,11 +150,11 @@ class Characters(Detector):
                     timestamp = element[2]
                     temp = (element[0], element[1])
             ordered.append(temp)
-        # Lock the players in
-        chars = [player[0].split('.')[0] for player in ordered]
-        if DEBUG_LEVEL > 1:
+        chars = [image[0].split(".", 1)[0] for image in ordered]
+        if DEBUG_LEVEL > 0:
             for p, ch in enumerate(chars):
                 print "Player %i is %s" % ((p+1), ch)
+        self.variables['characters'] = chars
         self.variables['num_players'] = len(ordered)
 
     def sort_characters(self, characters, frame):
