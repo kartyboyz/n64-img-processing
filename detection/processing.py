@@ -80,9 +80,8 @@ class FinishRace(Detector):
         player = 0
         best_val = 1
         best_mask = None
-        # First smooth out the image with a Gaussian blur
+
         if frame != None:
-            frame = cv.GaussianBlur(frame, (5, 5), 1)
             # Convert to HSV and then threshold in range for yellow
             binary = cv.cvtColor(frame , cv.COLOR_BGR2HSV)
             binary = cv.inRange(binary, (8, 185, 212), (40, 255, 255))
@@ -148,9 +147,8 @@ class PositionChange(Detector):
         player = 0
         best_val = 1
         best_mask = None
-        # First smooth out the image with a Gaussian blur
+
         if frame != None:
-            frame = cv.GaussianBlur(frame, (5, 5), 1)
             # Convert to HSV, threshold in range for yellow, and blur again.
             hsv = cv.cvtColor(frame , cv.COLOR_BGR2HSV)
             binary = cv.inRange(hsv, (8, 185, 212), (40, 255, 255))
@@ -158,10 +156,10 @@ class PositionChange(Detector):
             if len(self.default_shape) != 1:
                 for mask, shape in zip(self.masks, self.default_shape):
                     if frame.shape != shape:
-                        scaled_mask = (cv.GaussianBlur(cv.cvtColor(utility.scaleImage(frame,mask[0], shape), 
-                            cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                        scaled_mask = (cv.cvtColor(utility.scaleImage(frame,mask[0], shape), 
+                            cv.COLOR_BGR2GRAY), mask[1])
                     else:
-                        scaled_mask = (cv.GaussianBlur(cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                        scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
                     distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                     minval, _, minloc, _ = cv.minMaxLoc(distances)
                     if minval <= self.threshold and minval < best_val:
@@ -169,7 +167,7 @@ class PositionChange(Detector):
                         best_mask = scaled_mask
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
-                    if DEBUG_LEVEL > 0:
+                    if DEBUG_LEVEL > 1:
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
                     if DEBUG_LEVEL > 1:
                         cv.imshow('thresh', binary)
@@ -177,10 +175,10 @@ class PositionChange(Detector):
             else:
                 for mask in self.masks:
                     if frame.shape != self.default_shape[0]:
-                            scaled_mask = (cv.GaussianBlur(cv.cvtColor(utility.scaleImage(frame,mask[0], self.default_shape[0]), 
-                                cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                            scaled_mask = (cv.cvtColor(utility.scaleImage(frame,mask[0], self.default_shape[0]), 
+                                cv.COLOR_BGR2GRAY), mask[1])
                     else:
-                        scaled_mask = (cv.GaussianBlur(cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), (5, 5), 1), mask[1])
+                        scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
                     distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                     minval, _, minloc, _ = cv.minMaxLoc(distances)
                     if minval <= self.threshold and minval < best_val:
@@ -188,7 +186,7 @@ class PositionChange(Detector):
                         best_mask = scaled_mask
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
-                    if DEBUG_LEVEL > 0:
+                    if DEBUG_LEVEL > 1:
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
                     if DEBUG_LEVEL > 1:
                         cv.imshow('thresh', binary)
@@ -236,10 +234,6 @@ class Collisions(Detector):
     Collisions are when you get hit by a green shell, red shell, blue shell,
     bomb-omb, or banana.
     """
-    def process(self, frame, cur_count, player):
-        frame = cv.GaussianBlur(frame, (3, 3), 1)
-        super(Collisions, self).process(frame, cur_count, player)
-
     def handle(self, frame, player, mask, cur_count, location):
         # TODO/xxx: debounce hits
         # Create an event
@@ -278,10 +272,6 @@ class Collisions(Detector):
 
 class Laps(Detector):
     """Detector for lap changes"""
-    def process(self, frame, cur_count, player):
-        frame = cv.GaussianBlur(frame, (5, 5), 1)
-        super(Laps, self).process(frame, cur_count, player)
-
     def handle(self, frame, player, mask, cur_count, location):
         # TODO/xxx: debounce hits
         # Increment the lap state variable and create an event
@@ -304,17 +294,15 @@ class Items(Detector):
         self.prev_item = ''
         super(Items, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
 
-    def process(self, frame, cur_count, player):
-        frame = cv.GaussianBlur(frame, (3, 3), 1)
-        super(Items, self).process(frame, cur_count, player)
-
     def handle(self, frame, player, mask, cur_count, location):
-        blank = 'blank_box.png' # Name of image containing blank item box
+        blank = 'blank_box' # Name of image containing blank item box
         self.buffer.append(mask[1])
         cur_item = self.buffer[len(self.buffer) - 2]
         # If this detection was a blank box and the last was not, continue with checks
-        if len(self.buffer) > 1 and mask[1] == blank and cur_item != blank:
+        if (len(self.buffer) > 1) and (blank in mask[1]) and (blank not in cur_item):
             timestamp = cur_count / self.variables['frame_rate']
+            print str(self.past_timestamp) + '\t' + str(timestamp) + '\t' + str(timestamp - self.past_timestamp)
+
             if not self.past_timestamp:
                 # Create an event
                 self.create_event(event_type=self.name(),
@@ -330,10 +318,11 @@ class Items(Detector):
                     print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
 
             # Has been more than a second since the last event
-            elif (timestamp - self.past_timestamp) > 1:
+            elif (timestamp - self.past_timestamp) > 0.45:
                 # Was the last item boo? If so, the item received can only be detected on use.
                 # Therefore, it doesn't matter if every item in the buffer is the same besides the last element.
                 if self.prev_item == 'boo.png':
+                    print self.prev_item
                     # Create an event
                     self.create_event(event_type=self.name(),
                                       event_subtype='Item Get',
@@ -346,9 +335,9 @@ class Items(Detector):
                     if DEBUG_LEVEL > 0:
                         print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
                 # Are all items besides the last item in the buffer equal
-                elif self.buffer.count(self.buffer[0]) != (len(self.buffer) - 1):
+                elif self.buffer.count(cur_item) != (len(self.buffer) - 1):
                     # If the current item is a single mushroom and the previous item was triple mushroom, do nothing.
-                    if not (cur_item == 'boost_1.png' and self.prev_item == 'boost_3'):
+                    if not (cur_item == 'boost_1.png' and self.prev_item == 'boost_3.png'):
                         # Create an event
                         self.create_event(event_type=self.name(),
                                           event_subtype='Item Get',

@@ -26,7 +26,7 @@ race = multiprocessing.Manager().dict({
         })
 
 player = multiprocessing.Manager().dict({
-           'frame_rate' : -1,
+           'frame_rate' : float(30),
            'place' : -1,
            'lap' : -1,
            'is_started' : False,
