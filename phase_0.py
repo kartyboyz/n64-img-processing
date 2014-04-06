@@ -51,7 +51,7 @@ def main(session_id, video_file):
                                      threshold=0.17,
                                      default_shape=[(237, 318, 3), (237, 344, 3)],
                                      variables=VARIABLES)
-    MAPS = detection.Map(masks_dir='./masks/maps_alt_alt/',
+    MAPS = detection.Map(masks_dir='./masks/maps/',
                             freq=1,
                             threshold=0.16,
                             default_shape=[(475, 619, 3)],
