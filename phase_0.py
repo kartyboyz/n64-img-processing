@@ -51,6 +51,11 @@ def main(session_id, video_file):
                                      threshold=0.17,
                                      default_shape=[(237, 318, 3), (237, 344, 3)],
                                      variables=VARIABLES)
+    MAPS = detection.Map(masks_dir='./masks/maps_alt_alt/',
+                            freq=1,
+                            threshold=0.16,
+                            default_shape=[(475, 619, 3)],
+                            variables=VARIABLES)
     END_RACE = detection.EndRace(variables=VARIABLES,
                                  session_id=session_id)
     """Engine Setup"""
@@ -58,7 +63,7 @@ def main(session_id, video_file):
                               video_source=video_file.name)
     ENGINE.setup_processes(num=1,
                            regions=[None])
-    ENGINE.add_detectors([BLACK, BOXES, START_RACE, CHARS, END_RACE])
+    ENGINE.add_detectors([BLACK, BOXES, START_RACE, CHARS, MAPS, END_RACE])
 
     """Main"""
     rv = ENGINE.process()

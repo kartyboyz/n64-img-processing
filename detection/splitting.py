@@ -180,13 +180,77 @@ class Characters(Detector):
 #TODO Fix map masks!!!!
 class Map(Detector):
     """Determines which map is being played (phase_0)"""
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+        self.waiting_black = False
+        self.map = ''
+        super(Map, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
+
+    def detect(self, frame, cur_count, player):
+        if self.variables['is_black']:
+            if self.waiting_black:
+                self.variables['map'] = self.map.split('.')[0]
+                self.waiting_black = False
+                print 'locked in %s' % (self.map.split('.')[0])
+            else:
+                return
+        if (cur_count % self.freq) == 0:
+            self.process(frame, cur_count, player)
+
+    def process(self, frame, cur_count, player):
+        player = 0
+        best_val = 1
+        best_mask = None
+
+        if frame != None:
+            # Convert to grayscale and threshold
+            binary = cv.cvtColor(frame , cv.COLOR_BGR2GRAY)
+            _, binary = cv.threshold(binary, 120, 255, cv.THRESH_BINARY)
+            binary = cv.GaussianBlur(binary, (3, 3), 1)
+            # Scale and grayscale the masks
+            if len(self.default_shape) != 1:
+                for mask, shape in zip(self.masks, self.default_shape):
+                    if frame.shape != shape:
+                        scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], shape), 
+                            cv.COLOR_BGR2GRAY), mask[1])
+                    else:
+                        scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
+                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    minval, _, minloc, _ = cv.minMaxLoc(distances)
+                    if minval <= self.threshold and minval < best_val:
+                        best_val = minval
+                        best_mask = scaled_mask
+                    if DEBUG_LEVEL > 1:
+                        cv.imshow('thresh', binary)
+                        cv.waitKey(1)
+                if best_mask is not None:
+                    self.handle(frame, player, best_mask, cur_count, minloc)
+                    if DEBUG_LEVEL > 0:
+                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+            else:
+                for mask in self.masks:
+                    if frame.shape != self.default_shape[0]:
+                            scaled_mask = (cv.cvtColor(utility.scaleImage(frame,mask[0], self.default_shape[0]), 
+                                cv.COLOR_BGR2GRAY), mask[1])
+                    else:
+                        scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
+                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    minval, _, minloc, _ = cv.minMaxLoc(distances)
+                    if minval <= self.threshold and minval < best_val:
+                        best_val = minval
+                        best_mask = scaled_mask
+                    if DEBUG_LEVEL > 1:
+                        cv.imshow('thresh', binary)
+                        cv.waitKey(1)
+                if best_mask is not None:
+                    self.handle(frame, player, best_mask, cur_count, minloc)
+                    if DEBUG_LEVEL > 0:
+                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+
     def handle(self, frame, player, mask, cur_count, location):
-        # Disable the detector and update race variables
-        self.deactivate()
-        self.variables['map'] = mask[1].split('.')[0]
+        self.map = mask[1]
+        self.waiting_black = True
         if DEBUG_LEVEL > 0:
             print '[%s]: Map is: %s' % (self.name(), mask[1].split('.')[0])
-            cv.waitKey()
 
 
 class StartRace(Detector):
