@@ -270,22 +270,43 @@ class Collisions(Detector):
                 print "[%s]: Player %s was hit with an item or bomb-omb" % (self.name(), player)
 
 
-class Laps(Detector):
+class Lap(Detector):
     """Detector for lap changes"""
     def handle(self, frame, player, mask, cur_count, location):
-        # TODO/xxx: debounce hits
-        # Increment the lap state variable and create an event
-        self.variables['lap'] += 1
-        timestamp = cur_count / self.variables['frame_rate']
-        self.create_event(event_type='Lap',
-                          event_subtype='Lap Change',
-                          timestamp=np.floor(timestamp),
-                          player=player,
-                          lap=self.variables['lap'],
-                          place=self.variables['place'],
-                          info="Player is now on lap %s" % (mask[1].split('.')[0]))
-        if DEBUG_LEVEL > 0:
-            print "[%s]: Player %s is on %s" % (self.__class__.__name__, player, mask[1])
+        # Disregard if a detection on lap 3 occured on a lap 2 change or lap 2 on a lap 3 change
+        if ((self.variables['lap'] == 1) and ('2' in mask[1])) or \
+            ((self.variables['lap'] == 2) and ('3' in mask[1])):
+            timestamp = cur_count / self.variables['frame_rate']
+            if not self.past_timestamp:
+                self.past_timestamp = timestamp
+                # Increment the lap state variable and create an event
+                self.variables['lap'] += 1
+                self.create_event(event_type='Lap',
+                                event_subtype='Lap Change',
+                                timestamp=np.floor(timestamp),
+                                player=player,
+                                lap=self.variables['lap'],
+                                place=self.variables['place'],
+                                info="Player is now on lap %s" % (mask[1].split('.')[0]))
+                if DEBUG_LEVEL > 0:
+                    print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
+            # Fastest lap ever is 2.39 seconds on Wario Stadium (SC)
+            elif (timestamp - self.past_timestamp) > 2.38:
+                self.past_timestamp = timestamp
+                # Increment the lap state variable and create an event
+                self.variables['lap'] += 1
+                self.create_event(event_type='Lap',
+                                event_subtype='Lap Change',
+                                timestamp=np.floor(timestamp),
+                                player=player,
+                                lap=self.variables['lap'],
+                                place=self.variables['place'],
+                                info="Player is now on lap %s" % (mask[1].split('.')[0]))
+                if DEBUG_LEVEL > 0:
+                    print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
+        # Deactivate on lap 3 detection
+        if self.variables['lap'] >= 3:
+            self.deactivate()
 
 
 class Items(Detector):

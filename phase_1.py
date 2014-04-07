@@ -43,16 +43,16 @@ def debug_main(session_id, video_file):
                                     threshold=0.07,
                                     default_shape=[(237,314,3)],
                                     variables=VARIABLES)
-    LAP = detection.Laps(masks_dir='./masks/laps/',
-                                    freq=1,
-                                    threshold=0.02,
-                                    default_shape=[(237,314,3)],
-                                    variables=VARIABLES)
+    LAP = detection.Lap(masks_dir='./masks/laps/',
+                        freq=1,
+                        threshold=0.08,
+                        default_shape=[(237,314,3)],
+                        variables=VARIABLES)
     """Engine Setup"""
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
     ENGINE.setup_processes(num=1, regions=[[(4, 317), (0, 237)]])
-    ENGINE.add_detectors([BLACK, POSITION_CHANGE])
+    ENGINE.add_detectors([BLACK, LAP])
 
     """Main"""
     rv = ENGINE.process()
