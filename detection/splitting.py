@@ -22,6 +22,7 @@ from config import DEBUG_LEVEL
 class BoxExtractor(Detector):
     def __init__(self, variables):
         self.variables = variables
+        self.set = False
 
     def detect(self, cur_frame, frame_cnt):
         OFFSET = 10
@@ -51,6 +52,9 @@ class BoxExtractor(Detector):
                 local.append([(int(str(coord[0][0]), 10), int(str(coord[0][1]), 10)),
                               (int(str(coord[1][0]), 10), int(str(coord[1][1]), 10))])
             self.variables['player_regions'] = self.sort_boxes(local, cur_frame)
+            if not self.set and self.variables['is_started']:
+                self.variables['locked_regions'] = self.variables['player_regions']
+                self.set = True
         else:
             # Completely black frame
             self.variables['player_regions'] = [[(0, cur_frame.shape[1]), (0, cur_frame.shape[0])]]
@@ -76,7 +80,7 @@ class Characters(Detector):
         self.waiting_black = False
         super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
 
-    def detect(self, frame, cur_count):
+    def detect(self, frame, cur_count, player):
         height, width, _ = frame.shape
         focus_region = frame[np.ceil(height * 0.25) : np.ceil(height * 0.95),
                         np.ceil(width * 0.25) : np.ceil(width * 0.75)]
@@ -86,7 +90,7 @@ class Characters(Detector):
             else:
                 return
         if not self.variables['is_started'] and (cur_count % self.freq == 0):
-            self.process(focus_region, cur_count, 0)
+            self.process(focus_region, cur_count, player)
             if DEBUG_LEVEL > 1:
                 cv.imshow(self.name(), focus_region)
                 cv.waitKey(1)
@@ -277,7 +281,7 @@ class EndRace(Detector):
         self.variables = variables
         self.session_id = session_id
 
-    def detect(self, frame, cur_count):
+    def detect(self, frame, cur_count, player):
         if self.variables['is_started']:
             if self.variables['is_black']:
                 # Either rage-quit or clean race finish (we'll handle rage quits later)
@@ -290,11 +294,12 @@ class EndRace(Detector):
         # Populate dictionary with race duration
         self.variables['duration'] = np.ceil((cur_count / self.variables['frame_rate']) - self.variables['start_time'])
         self.variables['events'].append([(self.variables['start_time'], self.variables['duration'])])
-        # On end race, deactivate EndRaceDetector, activate StartRaceDetector and CharDetector
+        # On end race, deactivate EndRaceDetector, activate StartRaceDetector, BoxExtractor, and CharDetector
         self.deactivate()
         self.activate('StartRace')
         self.activate('Characters')
         self.activate('Map')
+        self.activate('BoxExtractor')
         # Store as event for splitting
         self.create_event(start_time=self.variables['start_time'],
                           duration=self.variables['duration'])

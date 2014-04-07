@@ -111,9 +111,7 @@ class Worker(multiprocessing.Process):
                 for d in self.detectors:
                     if d.is_active():
                         if isinstance(d, detection.BoxExtractor) or \
-                           isinstance(d, detection.BlackFrame) or \
-                           isinstance(d, detection.Characters) or \
-                           isinstance(d, detection.EndRace):
+                            isinstance(d, detection.BlackFrame):
                             d.detect(frame, self.count)
                         else:
                             # TODO/xxx: FIX THIS SHIT
