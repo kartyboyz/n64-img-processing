@@ -114,7 +114,7 @@ def parse_events(event_type, video_file, rv):
                 'duration' : race['duration'],
                 'characters' : rv[0]['characters'],
                 'course' : rv[0]['map'],
-                'player_regions' : rv[0]['player_regions'],
+                'player_regions' : rv[0]['locked_regions'],
                 'processed' : False,
                 'video_split' : True
             }
