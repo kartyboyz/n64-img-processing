@@ -20,8 +20,7 @@ from config import DEBUG_LEVEL
 
 
 class BoxExtractor(Detector):
-    def __init__(self, variables):
-        self.variables = variables
+    def __init__(self,):
         self.set = False
 
     def detect(self, cur_frame, frame_cnt):
@@ -76,9 +75,9 @@ class BoxExtractor(Detector):
 
 
 class Characters(Detector):
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
         self.waiting_black = False
-        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
+        super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, buf_len)
 
     def detect(self, frame, cur_count, player):
         height, width, _ = frame.shape
@@ -184,10 +183,10 @@ class Characters(Detector):
 #TODO Fix map masks!!!!
 class Map(Detector):
     """Determines which map is being played (phase_0)"""
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
         self.waiting_black = False
         self.map = ''
-        super(Map, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
+        super(Map, self).__init__(masks_dir, freq, threshold, default_shape, buf_len)
 
     def detect(self, frame, cur_count, player):
         if self.variables['is_black']:
@@ -267,7 +266,7 @@ class StartRace(Detector):
             self.deactivate('BoxExtractor')
             self.deactivate('Map')
             # Lock in player boxes (should be sorted alreadY)
-            self.variables['player_regions'] = self.variables['player_regions']
+            self.variables['player_regions'] = self.variables['player_regions'][0:self.variables['num_players']]
             # Populate dictionary with start time
             self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 2
             if DEBUG_LEVEL > 0:
@@ -277,9 +276,8 @@ class StartRace(Detector):
 
 class EndRace(Detector):
     """Handles the end of a race (phase_0)"""
-    def __init__(self, variables, session_id):
-        self.variables = variables
-        self.session_id = session_id
+    def __init__(self):
+        pass
 
     def detect(self, frame, cur_count, player):
         if self.variables['is_started']:

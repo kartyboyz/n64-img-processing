@@ -63,25 +63,26 @@ class S3(object):
         k.set_contents_from_filename(file_path)
         return k.key
 
-    def download_url(self, video_type, video_url, video_id):
+    def download_url(self, data_type, url, data_id):
         filename = None
-        if 'race' in video_type:
+        if 'race' in data_type:
             name = 'race-videos'
-            key_name = video_url.split('.com/')[-1]
-        elif 'session' in video_type:
+        elif 'session' in data_type:
             name = 'session-videos'
-            key_name = video_url.split('.com/')[-1]
+        elif 'audio' in data_type:
+            name = 'race-audio'
         else:
             raise ValueError("Invalid video type")
         try:
+            key_name = url.split('.com/')[-1]
             print key_name
             bucket = self.buckets[name]
             print bucket
             key = bucket.get_key(key_name)
             print key
-            ext = video_url.split('.')[-1]
+            ext = url.split('.')[-1]
             print ext
-            filename = '%s%s.%s' % (name, video_id, ext)
+            filename = '%s%s.%s' % (name, data_id, ext)
             print filename
             key.get_contents_to_filename(filename)
         except:
@@ -106,7 +107,7 @@ class DB(object):
             return None
 
     def post_events(self, race_id, events):
-        url = '%s:%d/races/%d/events' % (self.database, self.port, race_id)
+        url = '%s:%d/races/%s/events' % (self.database, self.port, race_id)
         for e in events:
             payload = json.dumps(e)
             print payload

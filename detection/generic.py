@@ -20,7 +20,7 @@ from config import DEBUG_LEVEL
 
 class Detector(object):
     """Super (and abstract) class for all detectors, written specifically for MK64 events """
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
         if type(self) is Detector:
             raise Exception("<Detector> should be subclassed.")
         self.masks = [(cv.imread(masks_dir+name), name)
@@ -30,13 +30,12 @@ class Detector(object):
         self.freq = freq
         self.threshold = threshold
         if len(default_shape) != 1 and len(default_shape) != len(self.masks):
-            print len(self.masks), len(default_shape)
             raise Exception("Default shape must be of length 1 or length of masks list.")
         self.default_shape = default_shape
-        self.variables = variables[0]
         if buf_len:
             self.buffer = utility.RingBuffer(buf_len)
         self.detector_states = None #To be filled in by setter
+        self.variables = None
         self.past_timestamp = 0.0 # To be used for debouncing events
 
     def name(self):
@@ -98,7 +97,6 @@ class Detector(object):
                 if minval <= self.threshold and minval < best_val:
                     best_val = minval
                     best_mask = scaled_mask
-            player = 0 #TODO: Remove this shit
             if best_mask is not None:
                 self.handle(frame, player, best_mask, cur_count, minloc)
                 if DEBUG_LEVEL > 1:
@@ -114,7 +112,6 @@ class Detector(object):
                 if minval <= self.threshold and minval < best_val:
                     best_val = minval
                     best_mask = scaled_mask
-            player = 0 #TODO: Remove this shit
             if best_mask is not None:
                 self.handle(frame, player, best_mask, cur_count, minloc)
                 if DEBUG_LEVEL > 1:
@@ -130,8 +127,8 @@ class BlackFrame(Detector):
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
-    def __init__(self, variables):
-        self.variables = variables
+    def __init__(self):
+        pass
 
     def detect(self, frame, cur_count):
         self.variables['is_black'] = False

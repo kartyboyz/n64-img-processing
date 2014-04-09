@@ -21,7 +21,10 @@ race = multiprocessing.Manager().dict({
         'locked_regions' : list()
         })
 
-player = multiprocessing.Manager().dict({
+class player(object):
+    def __init__(self):
+        self.manager = multiprocessing.Manager()
+        self.d = self.manager.dict({
            'frame_rate' : float(30),
            'place' : -1,
            'lap' : 1,
@@ -29,3 +32,8 @@ player = multiprocessing.Manager().dict({
            'events' : list()
            })
 
+    def __getitem__(self, item):
+        return self.d[item]
+
+    def __setitem__(self, key, value):
+        self.d[key] = value

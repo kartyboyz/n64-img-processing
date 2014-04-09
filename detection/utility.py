@@ -193,6 +193,13 @@ class RingBuffer(deque):
                 return ii
         return -1
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        res = cls.__new__(cls)
+        res.__max_size = self.__max_size
+        memo[id(self)] = res
+        return res
+
     def tolist(self):
         return list(self)
 

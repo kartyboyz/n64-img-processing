@@ -20,8 +20,7 @@ class Shortcut(Detector):
     Most of the functions are overriding the superclass.
     Updates race variables that race has stopped if above is true
     """
-    def __init__(self, variables):
-        self.variables = variables
+    def __init__(self):
         self.past_timestamp = 0.0 # To be used for debouncing events
 
     def detect(self, frame, cur_count, player):
@@ -29,8 +28,6 @@ class Shortcut(Detector):
             self.process(frame, cur_count, player)
 
     def process(self, frame, cur_count, player):
-        # TODO/xxx: REMOVE THIS
-        player = 0
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
         gray = cv.GaussianBlur(gray, (5,5), 1)
         _, gray = cv.threshold(gray, 80, 255, cv.THRESH_BINARY)
@@ -38,8 +35,6 @@ class Shortcut(Detector):
         # If at least 80% of the frame is true black, race has stopped
         if black_count <= float(16):
             self.handle(frame, player, cur_count)
-            if DEBUG_LEVEL > 1:
-                print black_count
         if DEBUG_LEVEL > 1:
             cv.imshow('thresh', gray)
             cv.waitKey(1)
@@ -77,10 +72,8 @@ class Shortcut(Detector):
 class FinishRace(Detector):
     """Detects the end of a race (phase_1)"""
     def process(self, frame, cur_count, player):
-        player = 0
         best_val = 1
         best_mask = None
-
         if frame != None:
             # Convert to HSV and then threshold in range for yellow
             binary = cv.cvtColor(frame , cv.COLOR_BGR2HSV)
@@ -144,10 +137,8 @@ class FinishRace(Detector):
 class PositionChange(Detector):
     """Detector for handling changes in position/place"""
     def process(self, frame, cur_count, player):
-        player = 0
         best_val = 1
         best_mask = None
-
         if frame != None:
             # Convert to HSV, threshold in range for yellow, and blur again.
             hsv = cv.cvtColor(frame , cv.COLOR_BGR2HSV)
@@ -206,7 +197,7 @@ class PositionChange(Detector):
                               player=player,
                               lap=self.variables['lap'],
                               place=self.variables['place'],
-                              info="Player %s finishing place: %s" % (player, mask[1].split('_')[0]))
+                              info=0)
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1])
         # Check if the found mask is different than the previous one
@@ -223,7 +214,7 @@ class PositionChange(Detector):
                               player=player,
                               lap=self.variables['lap'],
                               place=self.variables['place'],
-                              info="Player changed place from %s to %s" % (self.buffer[0].split('_')[0], self.buffer[1].split('_')[0]))
+                              info=int(self.buffer[0].split('_')[0])
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
                     self.buffer[len(self.buffer) - 2].split('_')[0], self.buffer[len(self.buffer) - 1].split('_')[0])
@@ -246,7 +237,7 @@ class Lap(Detector):
                                 player=player,
                                 lap=self.variables['lap'],
                                 place=self.variables['place'],
-                                info="Player is now on lap %s" % (mask[1].split('.')[0]))
+                                info="Player is now on lap %s" % (self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
             # Fastest lap ever is 2.39 seconds on Wario Stadium (SC)
@@ -260,7 +251,7 @@ class Lap(Detector):
                                 player=player,
                                 lap=self.variables['lap'],
                                 place=self.variables['place'],
-                                info="Player is now on lap %s" % (mask[1].split('.')[0]))
+                                info="Player is now on lap %s" % (self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
         # Deactivate on lap 3 detection
@@ -270,9 +261,9 @@ class Lap(Detector):
 
 class Items(Detector):
     """Detector for MK64 items"""
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
         self.prev_item = ''
-        super(Items, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
+        super(Items, self).__init__(masks_dir, freq, threshold, default_shape, buf_len)
 
     def handle(self, frame, player, mask, cur_count, location):
         blank = 'blank_box' # Name of image containing blank item box
@@ -281,8 +272,6 @@ class Items(Detector):
         # If this detection was a blank box and the last was not, continue with checks
         if (len(self.buffer) > 1) and (blank in mask[1]) and (blank not in cur_item):
             timestamp = cur_count / self.variables['frame_rate']
-            print str(self.past_timestamp) + '\t' + str(timestamp) + '\t' + str(timestamp - self.past_timestamp)
-
             if not self.past_timestamp:
                 # Create an event
                 self.create_event(event_type=self.name(),

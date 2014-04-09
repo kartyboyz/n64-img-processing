@@ -22,6 +22,7 @@ def split_session(session_id, url, rv_queue, job_data):
         # Split session, update DB
         parse_events('session', video_file, rv)
         # Cleanup
+        os.remove(video_file)
         rv_queue.put(rv)
     else:
         # No video
@@ -29,28 +30,22 @@ def split_session(session_id, url, rv_queue, job_data):
 
 
 def process_race(race_id, url, rv_queue, job_data):
-    print "PROCESSING"
     video_file = s3.download_url('race', url, race_id)
     print video_file
     if video_file is not None:
-        print "HULLO"
         # Get player regions
-        print job_data['player_regions']
-        print len(job_data['player_regions'])
         rv = phase_1.main(job_data['player_regions'], open(video_file))
-        # AUDIO PROCESS HERE
         # Send events to database
-        db.post_events(rv['events'])
+        for race_vars in rv:
+            print race_vars['events']
+            db.post_events(race_id, race_vars['events'])
         # Cleanup
-        rv_queue.put(rregionsv)
+        rv_queue.put(1)
     else:
         rv_queue.put(None)
 
 def process_audio(race_id, url, rv_queue):
-    try:
-        pass
-    except:
-        rv_queue.put(None)
+    pass
 
 def split_video(src, dst, start, duration):
     print "Splitting %s into %s" % (src, dst)
@@ -93,7 +88,6 @@ def parse_events(event_type, video_file, rv):
             filename='race%i.%s' % (idx, ext)
             start = race['start_time']
             duration = race['duration']
-
             split_video(video_file, filename, start, duration)
             split_audio(video_file, filename, start, duration)
 
@@ -101,6 +95,7 @@ def parse_events(event_type, video_file, rv):
             video_key = s3.upload(bucket='race-videos', file_path=filename)
             audio_key = s3.upload(bucket='race-audio', file_path=filename.split('.')[0]+'.wav')
 
+            # Notify audio queue
 
             # Clean
             os.remove(filename)

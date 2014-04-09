@@ -13,16 +13,17 @@ from config import DEBUG_LEVEL
 
 
 # Number of frames to be passed to subprocesses
-#    We can vary this to change how much memory is being used
+#    We can vary this to change how much shared memory is being used
 #    MEM_USAGE = BUFFER_LENGTH * sizeof(array_element) * frame.size
 BUFFER_LENGTH = 400
 
 
 class Worker(multiprocessing.Process):
-    """Worker process containing detetors, shared memory, and event triggers"""
-    def __init__(self, shared_memory, barrier, bounds, shape, event, lock, variables):
-        #CLEAN Are all of these necessary?
+    """Worker process containing detectors, shared memory, and event triggers"""
+    def __init__(self, shared_memory, barrier, bounds, shape,
+                 event, variables, num):
         multiprocessing.Process.__init__(self)
+        self.num = num
         self.variables = variables
         self.shared = shared_memory
         self.cached = dict()
@@ -31,12 +32,10 @@ class Worker(multiprocessing.Process):
         self.shape = shape
         self.size = reduce(lambda x, y: x*y, shape)
         self.event = event
-        self.lock = lock
         self.done = multiprocessing.Event()
         self.count = 1
         self.detectors = list()
         self.detector_states = dict() # Will be populated once Detectors are added
-        self.race_events_list = list() # List of event objects
         if bounds is None:
             self.phase = 0
         else:
@@ -48,13 +47,12 @@ class Worker(multiprocessing.Process):
         """Wrapper for adding more detectors, setting their states & variables"""
         for detector in detector_list:
             self.detector_states[detector.name()] = True
-            self.detectors.append(detector)
+            # We have to ensure no detectors are shared
+            self.detectors.append(copy.deepcopy(detector))
         for d in self.detectors:
             # Initialize detector states
             d.set_states(self.detector_states)
             d.set_variables(self.variables)
-            # Pass the same instance of race events list to each detector
-            d.set_race_events_list(self.race_events_list)
 
     def run(self):
         """Waits for & consumes frame buffer, then applies Detectors on each frame
@@ -66,7 +64,7 @@ class Worker(multiprocessing.Process):
         """
         while True:
             if self.done.is_set():
-		break
+                break
             self.event.wait() # Blocking - trigger MUST be set
             buff = np.frombuffer(self.shared.get_obj(), dtype=ctypes.c_ubyte)
             for i in range(BUFFER_LENGTH):
@@ -92,7 +90,6 @@ class Worker(multiprocessing.Process):
                     key = cv.waitKey(1)
                     if key is 27:
                         return
-                    # For debugging
                     elif key is 32:
                         self.toggle ^= 1
                         if not self.toggle:
@@ -103,8 +100,6 @@ class Worker(multiprocessing.Process):
                             for state in self.cached:
                                 if self.cached[state]:
                                     self.detector_states[state] = True
-                            
-
 
                 # NOTE: This section is our current bottleneck.
                 # Unfortunately it's a pretty big one, and it's due to OpenCV's matchTemplate()
@@ -114,8 +109,7 @@ class Worker(multiprocessing.Process):
                             isinstance(d, detection.BlackFrame):
                             d.detect(frame, self.count)
                         else:
-                            # TODO/xxx: FIX THIS SHIT
-                            d.detect(region, self.count, 0)
+                            d.detect(region, self.count, self.num)
                 self.count += 1
 
             if DEBUG_LEVEL > 0:
@@ -133,25 +127,21 @@ class ProcessManager(object):
         elif len(regions) != num:
             raise ValueError("[%s] Assertion failed: Array lengths do not match number specified" \
                             % (self.__class__.__name__))
-        
-        self.barrier = barrier
         # Shared memory buffer setup
         self.shared = multiprocessing.Array(ctypes.c_ubyte,
                                             video_source.size*BUFFER_LENGTH)
         self.image = np.frombuffer(self.shared.get_obj(), dtype=ctypes.c_ubyte)
 
         # Object instantiation
-        #CLEAN
         self.triggers = [multiprocessing.Event() for _ in range(4)]
-        self.locks = [multiprocessing.Lock() for _ in range(4)]
         shape = video_source.shape
         self.workers = [Worker(shared_memory=self.shared,
                                barrier=barrier,
                                bounds=regions[i],
                                shape=shape,
                                event=self.triggers[i],
-                               lock=self.locks[i],
-                               variables=variables[i]) for i in range(num)]
+                               variables=variables[i],
+                               num=i+1) for i in range(num)]
 
     def set_detectors(self, detect_list):
         """Wrapper for Workers"""

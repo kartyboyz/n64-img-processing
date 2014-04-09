@@ -31,38 +31,33 @@ def main(session_id, video_file):
     VARIABLES[0]['session_id'] = session_id
 
     """Detector Setup"""
-    BLACK = detection.BlackFrame(variables=VARIABLES)
-    BOXES = detection.BoxExtractor(variables=VARIABLES)
+    BLACK = detection.BlackFrame()
+    BOXES = detection.BoxExtractor()
     ITEMS = detection.Items(masks_dir='./masks/items/',
                             freq=1,
                             threshold=0.16,
                             default_shape=[(237, 314, 3)],
-                            variables=VARIABLES,
                             buf_len=8)
     #TODO Fix thresh. for CHARS
     CHARS = detection.Characters(masks_dir='./masks/chars/',
                                  freq=1,
                                  threshold=0.10,
                                  default_shape=[(333, 318, 3)],
-                                 variables=VARIABLES,
                                  buf_len=8)
     START_RACE = detection.StartRace(masks_dir='./masks/start/',
                                      freq=1,
                                      threshold=0.17,
-                                     default_shape=[(237, 318, 3), (237, 344, 3)],
-                                     variables=VARIABLES)
+                                     default_shape=[(237, 318, 3), (237, 344, 3)])
     MAPS = detection.Map(masks_dir='./masks/maps/',
                             freq=1,
                             threshold=0.16,
-                            default_shape=[(475, 619, 3)],
-                            variables=VARIABLES)
-    END_RACE = detection.EndRace(variables=VARIABLES,
-                                 session_id=session_id)
+                            default_shape=[(475, 619, 3)])
+    END_RACE = detection.EndRace()
+
     """Engine Setup"""
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
-    ENGINE.setup_processes(num=1,
-                           regions=[None])
+    ENGINE.setup_processes(num=1, regions=[None])
     ENGINE.add_detectors([BLACK, BOXES, START_RACE, CHARS, MAPS, END_RACE])
 
     """Main"""
