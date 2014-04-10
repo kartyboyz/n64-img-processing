@@ -35,7 +35,7 @@ class Shortcut(Detector):
         # If at least 80% of the frame is true black, race has stopped
         if black_count <= float(16):
             self.handle(frame, player, cur_count)
-        if DEBUG_LEVEL > 1:
+        if DEBUG_LEVEL > 2:
             cv.imshow('thresh', gray)
             cv.waitKey(1)
 
@@ -113,7 +113,7 @@ class FinishRace(Detector):
                     self.handle(frame, player, best_mask, cur_count, minloc)
                     if DEBUG_LEVEL > 0:
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
-                    if DEBUG_LEVEL > 1:
+                    if DEBUG_LEVEL > 2:
                         cv.imshow('thresh', binary)
                         cv.waitKey(1)
 
@@ -179,7 +179,7 @@ class PositionChange(Detector):
                     self.handle(frame, player, best_mask, cur_count, minloc)
                     if DEBUG_LEVEL > 1:
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
-                    if DEBUG_LEVEL > 1:
+                    if DEBUG_LEVEL > 2:
                         cv.imshow('thresh', binary)
                         cv.waitKey(1)
 
@@ -214,7 +214,7 @@ class PositionChange(Detector):
                               player=player,
                               lap=self.variables['lap'],
                               place=self.variables['place'],
-                              info=int(self.buffer[0].split('_')[0])
+                              info=self.buffer[0].split('_')[0])
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
                     self.buffer[len(self.buffer) - 2].split('_')[0], self.buffer[len(self.buffer) - 1].split('_')[0])
@@ -376,7 +376,6 @@ class Reverse(Detector):
                               info="Player fell off the map")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
-
 
 
 class BeginRace(Detector):

@@ -90,7 +90,7 @@ class Characters(Detector):
                 return
         if not self.variables['is_started'] and (cur_count % self.freq == 0):
             self.process(focus_region, cur_count, player)
-            if DEBUG_LEVEL > 1:
+            if DEBUG_LEVEL > 2:
                 cv.imshow(self.name(), focus_region)
                 cv.waitKey(1)
 
@@ -193,7 +193,8 @@ class Map(Detector):
             if self.waiting_black:
                 self.variables['map'] = self.map.split('.')[0]
                 self.waiting_black = False
-                print 'locked in %s' % (self.map.split('.')[0])
+                if DEBUG_LEVEL > 0:
+                    print 'Locked in map as %s' % (self.map.split('.')[0])
             else:
                 return
         if (cur_count % self.freq) == 0:
@@ -222,7 +223,7 @@ class Map(Detector):
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
                         best_mask = scaled_mask
-                    if DEBUG_LEVEL > 1:
+                    if DEBUG_LEVEL > 2:
                         cv.imshow('thresh', binary)
                         cv.waitKey(1)
                 if best_mask is not None:
@@ -241,7 +242,7 @@ class Map(Detector):
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
                         best_mask = scaled_mask
-                    if DEBUG_LEVEL > 1:
+                    if DEBUG_LEVEL > 2:
                         cv.imshow('thresh', binary)
                         cv.waitKey(1)
                 if best_mask is not None:

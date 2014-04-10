@@ -80,7 +80,7 @@ class Worker(multiprocessing.Process):
                         self.bounds = self.variables['player_regions'][0]
                 region = frame[self.bounds[1][0] : self.bounds[1][1],
                                self.bounds[0][0] : self.bounds[0][1]]
-                if DEBUG_LEVEL > 0:
+                if DEBUG_LEVEL > 1:
                     # This is just for fancy visual "animation" :-p
                     dbg = region.copy()
                     cv.putText(dbg, "Processing %i" % (i), (10, 40),

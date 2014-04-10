@@ -188,7 +188,7 @@ class Engine():
                     if not self.ret:
                         self.clear_buffer(offset=offset + size + 1)
                         raise StopIteration
-                    if DEBUG_LEVEL > 0:
+                    if DEBUG_LEVEL > 1:
                         cv.imshow(self.name, self.frame)
                         frame_count += 1
                         key = cv.waitKey(self.toggle)
