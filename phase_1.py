@@ -38,21 +38,34 @@ def debug_main(session_id, video_file):
                                             variables=VARIABLES,
                                             buf_len=2)
     SHORTCUT = detection.Shortcut(variables=VARIABLES)
-    COLLISION = detection.Collisions(masks_dir='./masks/collisions/',
-                                    freq=1,
-                                    threshold=0.07,
-                                    default_shape=[(237,314,3)],
-                                    variables=VARIABLES)
     LAP = detection.Lap(masks_dir='./masks/laps/',
                         freq=1,
                         threshold=0.08,
                         default_shape=[(237,314,3)],
                         variables=VARIABLES)
+    FALL = detection.Fall(masks_dir='./masks/fall/',
+                        freq=1,
+                        threshold=0.02,
+                        default_shape=[(237, 305, 3)],
+                        variables=VARIABLES)
+    REVERSE = detection.Reverse(masks_dir='./masks/reverse/',
+                        freq=1,
+                        threshold=0.06,
+                        default_shape=[(237, 306, 3)],
+                        variables=VARIABLES)
     """Engine Setup"""
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
-    ENGINE.setup_processes(num=1, regions=[[(4, 317), (0, 237)]])
-    ENGINE.add_detectors([BLACK, LAP])
+    ENGINE.setup_processes(num=1, regions=[[(320, 638), (0, 237)]])
+    # [p1 test]: (11, 316), (2, 239)
+    # [p1 s3]: (4, 317), (0, 237)
+    # [p2 test]: (321, 629), (2, 241)
+    # [p2 s3]: (320, 638), (0, 237)
+    # [p3 test]: (11, 316), (244, 477)
+    # [p3 s3]: (4, 317), (242, 475)
+    # [p4 test]: (321, 629), (244, 477)
+    # [p4 s3]: (320, 638), (242, 475)
+    ENGINE.add_detectors([BLACK, BEGIN_RACE, SHORTCUT])
 
     """Main"""
     rv = ENGINE.process()
@@ -87,11 +100,21 @@ def main(player_regions, video_file):
                                             variables=VARIABLES,
                                             buf_len=2)
     SHORTCUT = detection.Shortcut(variables=VARIABLES)
+    FALL = detection.Fall(masks_dir='./masks/fall/',
+                        freq=1,
+                        threshold=0.02,
+                        default_shape=[(237, 305, 3)],
+                        variables=VARIABLES)
+    REVERSE = detection.Reverse(masks_dir='./masks/reverse/',
+                        freq=1,
+                        threshold=0.06,
+                        default_shape=[(237, 306, 3)],
+                        variables=VARIABLES)
 
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
     ENGINE.setup_processes(num=len(player_regions), regions=player_regions)
-    ENGINE.add_detectors([BLACK])
+    ENGINE.add_detectors([BLACK, COLLISIONS])
 
     """Main"""
     rv = ENGINE.process()

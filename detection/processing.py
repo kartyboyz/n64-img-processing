@@ -36,7 +36,7 @@ class Shortcut(Detector):
         _, gray = cv.threshold(gray, 80, 255, cv.THRESH_BINARY)
         black_count = float(np.sum(gray)) / float(gray.size)
         # If at least 80% of the frame is true black, race has stopped
-        if black_count <= float(20):
+        if black_count <= float(16):
             self.handle(frame, player, cur_count)
             if DEBUG_LEVEL > 1:
                 print black_count
@@ -229,47 +229,6 @@ class PositionChange(Detector):
                     self.buffer[len(self.buffer) - 2].split('_')[0], self.buffer[len(self.buffer) - 1].split('_')[0])
 
 
-class Collisions(Detector):
-    """Detector for collisions
-    Collisions are when you get hit by a green shell, red shell, blue shell,
-    bomb-omb, or banana.
-    """
-    def handle(self, frame, player, mask, cur_count, location):
-        # TODO/xxx: debounce hits
-        # Create an event
-        timestamp = cur_count / self.variables['frame_rate']
-        if not self.past_timestamp:
-            self.past_timestamp = timestamp
-            if 'banana' in mask[1]:
-                subtype = 'Banana'
-            else:
-                subtype = 'Shell or Bomb'
-            self.create_event(event_type=self.name(),
-                              event_subtype=subtype,
-                              timestamp=np.floor(timestamp),
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info="Player collided with an object")
-            if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s was hit with an item or bomb-omb" % (self.name(), player)
-        elif (timestamp - self.past_timestamp) > 2.0:
-            self.past_timestamp = timestamp
-            if 'banana' in mask[1]:
-                subtype = 'Banana'
-            else:
-                subtype = 'Shell or Bomb'
-            self.create_event(event_type=self.name(),
-                              event_subtype=subtype,
-                              timestamp=np.floor(timestamp),
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info="Player collided with an object")
-            if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s was hit with an item or bomb-omb" % (self.name(), player)
-
-
 class Lap(Detector):
     """Detector for lap changes"""
     def handle(self, frame, player, mask, cur_count, location):
@@ -374,6 +333,63 @@ class Items(Detector):
             self.past_timestamp = timestamp
 
 
+class Fall(Detector):
+    """A detector for whenever the player falls of the map"""
+    def handle(self, frame, player, mask, cur_count, location):
+        timestamp = cur_count / self.variables['frame_rate']
+        if not self.past_timestamp:
+            self.past_timestamp = timestamp
+            self.create_event(event_type=self.name(),
+                              event_subtype=self.name(),
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player fell off the map")
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s fell off the map" % (self.name(), player)
+        elif (timestamp - self.past_timestamp) > 8.0:
+            self.past_timestamp = timestamp
+            self.create_event(event_type=self.name(),
+                              event_subtype=self.name(),
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player fell off the map")
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s fell off the map" % (self.name(), player)
+
+
+class Reverse(Detector):
+    """A detector for whenever the player drives in reverse"""
+    def handle(self, frame, player, mask, cur_count, location):
+        timestamp = cur_count / self.variables['frame_rate']
+        if not self.past_timestamp:
+            self.past_timestamp = timestamp
+            self.create_event(event_type=self.name(),
+                              event_subtype=self.name(),
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player fell off the map")
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
+        elif (timestamp - self.past_timestamp) > 8.0:
+            self.past_timestamp = timestamp
+            self.create_event(event_type=self.name(),
+                              event_subtype=self.name(),
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="Player fell off the map")
+            if DEBUG_LEVEL > 0:
+                print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
+
+
+
 class BeginRace(Detector):
     """Handles the beginning of a race in phase_1"""
     def handle(self, frame, player, mask, cur_count, location):
@@ -389,3 +405,5 @@ class BeginRace(Detector):
                           lap=self.variables['lap'],
                           place=0,
                           info="Race has begun")
+        if DEBUG_LEVEL > 0:
+            print '[%s]: Race started at %d seconds' % (self.name(), timestamp)
