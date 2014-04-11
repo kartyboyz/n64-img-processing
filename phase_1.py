@@ -11,7 +11,7 @@ import sys
 import detection
 def debug_main(session_id, video_file):
     """Configuration Variables/Data Setup"""
-    VARIABLES = [detection.config.player() for _ in range(3)]
+    VARIABLES = [detection.config.player() for _ in range(4)]
 
     """Detector Setup"""
     BLACK = detection.BlackFrame()
@@ -33,6 +33,15 @@ def debug_main(session_id, video_file):
                                             threshold=0.16,
                                             default_shape=[(237,314,3)],
                                             buf_len=2)
+    FALL = detection.Fall(masks_dir='./masks/fall/',
+                        freq=1,
+                        threshold=0.02,
+                        default_shape=[(237, 305, 3)])
+    REVERSE = detection.Reverse(masks_dir='./masks/reverse/',
+                        freq=1,
+                        threshold=0.05,
+                        default_shape=[(237, 306, 3)])
+
     # [p1 test]: (11, 316), (2, 239)
     # [p1 s3]: (4, 317), (0, 237)
     # [p2 test]: (321, 629), (2, 241)
@@ -50,9 +59,9 @@ def debug_main(session_id, video_file):
     """Engine Setup"""
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
-    ENGINE.setup_processes(num=3, regions=[[[4, 317], [0, 237]], [[320, 638], [0, 237]], [[4, 317], [242, 475]]])
+    ENGINE.setup_processes(num=4, regions=[[[4, 317], [0, 237]], [[320, 638], [0, 237]], [[4, 317], [242, 475]], [[320, 638], [242, 475]]])
 
-    ENGINE.add_detectors([BLACK, LAP, BEGIN_RACE, FINISH_RACE, POSITION_CHANGE, SHORTCUT, ITEMS])
+    ENGINE.add_detectors([BLACK, LAP, BEGIN_RACE, FINISH_RACE, POSITION_CHANGE, SHORTCUT, ITEMS, FALL, REVERSE])
 
     """Main"""
     rv = ENGINE.process()

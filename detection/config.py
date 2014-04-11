@@ -11,7 +11,7 @@ DEBUG_LEVEL = 1
 race = multiprocessing.Manager().dict({
         'session_id' : 0,
         'frame_rate' : float(30),
-        'num_players' : 0,
+        'num_players' : 1,
         'characters' : list(),
         'is_started' : False,
         'is_black' : False,

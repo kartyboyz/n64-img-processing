@@ -33,12 +33,6 @@ def main(session_id, video_file):
     """Detector Setup"""
     BLACK = detection.BlackFrame()
     BOXES = detection.BoxExtractor()
-    ITEMS = detection.Items(masks_dir='./masks/items/',
-                            freq=1,
-                            threshold=0.16,
-                            default_shape=[(237, 314, 3)],
-                            buf_len=8)
-    #TODO Fix thresh. for CHARS
     CHARS = detection.Characters(masks_dir='./masks/chars/',
                                  freq=1,
                                  threshold=0.10,

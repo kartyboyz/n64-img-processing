@@ -81,12 +81,13 @@ class FinishRace(Detector):
             # Blur again to smooth out thresholded frame
             binary = cv.GaussianBlur(binary, (5, 5), 1)
             if len(self.default_shape) != 1:
+                binary_roi = self.constrain_roi(binary)
                 for mask, shape in zip(self.masks, self.default_shape):
                     if frame.shape != shape:
                         scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], shape), cv.COLOR_BGR2GRAY), mask[1])
                     else:
                         scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
-                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    distances = cv.matchTemplate(binary_roi, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                     minval, _, minloc, _ = cv.minMaxLoc(distances)
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
@@ -99,12 +100,13 @@ class FinishRace(Detector):
                         cv.imshow('thresh', binary)
                         cv.waitKey(1)
             else:
+                binary_roi = self.constrain_roi(binary)
                 for mask in self.masks:
                     if frame.shape != self.default_shape[0]:
                         scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], self.default_shape[0]), cv.COLOR_BGR2GRAY), mask[1])
                     else:
                         scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
-                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    distances = cv.matchTemplate(binary_roi, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                     minval, _, minloc, _ = cv.minMaxLoc(distances)
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
@@ -133,6 +135,12 @@ class FinishRace(Detector):
         if DEBUG_LEVEL > 0:
             print "[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1].split('_')[0])
 
+    def constrain_roi(self, frame):
+        # Constrains frame wwith correct specs w.r.t. FinishRace
+        h, _ = frame.shape
+        frame = frame[np.ceil(h / 3):h, :]
+        return frame
+
 
 class PositionChange(Detector):
     """Detector for handling changes in position/place"""
@@ -145,13 +153,14 @@ class PositionChange(Detector):
             binary = cv.inRange(hsv, (8, 185, 212), (40, 255, 255))
             binary = cv.GaussianBlur(binary, (5,5), 1)
             if len(self.default_shape) != 1:
+                binary_roi = self.constrain_roi(binary)
                 for mask, shape in zip(self.masks, self.default_shape):
                     if frame.shape != shape:
                         scaled_mask = (cv.cvtColor(utility.scaleImage(frame,mask[0], shape), 
                             cv.COLOR_BGR2GRAY), mask[1])
                     else:
                         scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
-                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    distances = cv.matchTemplate(binary_roi, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                     minval, _, minloc, _ = cv.minMaxLoc(distances)
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
@@ -161,16 +170,17 @@ class PositionChange(Detector):
                     if DEBUG_LEVEL > 1:
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
                     if DEBUG_LEVEL > 1:
-                        cv.imshow('thresh', binary)
+                        cv.imshow('thresh', binary_roi)
                         cv.waitKey(1)
             else:
+                binary_roi = self.constrain_roi(binary)
                 for mask in self.masks:
                     if frame.shape != self.default_shape[0]:
                             scaled_mask = (cv.cvtColor(utility.scaleImage(frame,mask[0], self.default_shape[0]), 
                                 cv.COLOR_BGR2GRAY), mask[1])
                     else:
                         scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
-                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    distances = cv.matchTemplate(binary_roi, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                     minval, _, minloc, _ = cv.minMaxLoc(distances)
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
@@ -180,7 +190,7 @@ class PositionChange(Detector):
                     if DEBUG_LEVEL > 1:
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
                     if DEBUG_LEVEL > 2:
-                        cv.imshow('thresh', binary)
+                        cv.imshow('thresh', binary_roi)
                         cv.waitKey(1)
 
     def handle(self, frame, player, mask, cur_count, location):
@@ -218,6 +228,12 @@ class PositionChange(Detector):
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
                     self.buffer[len(self.buffer) - 2].split('_')[0], self.buffer[len(self.buffer) - 1].split('_')[0])
+
+    def constrain_roi(self, frame):
+        # Constrains frame wwith correct specs w.r.t. PositionChange
+        h, _ = frame.shape
+        frame = frame[np.ceil(h * 0.5):h, :]
+        return frame
 
 
 class Lap(Detector):
@@ -258,13 +274,17 @@ class Lap(Detector):
         if self.variables['lap'] >= 3:
             self.deactivate()
 
+    def constrain_roi(self, frame):
+        # Constrains frame wwith correct specs w.r.t. Lap. Lap needs entire frame.
+        return frame
+
 
 class Items(Detector):
     """Detector for MK64 items"""
-    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+    def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
         self.item_hist = utility.RingBuffer(3) # Used to track item history
         self.blank_count = 0 # A mod 2 variable that will be incremented. i.e. = {0, 1}
-        super(Items, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
+        super(Items, self).__init__(masks_dir, freq, threshold, default_shape, buf_len)
     
     def handle(self, frame, player, mask, cur_count, location):
         blank = 'blank_box'
@@ -361,10 +381,10 @@ class Items(Detector):
         # Case 2: Already saw 
         elif self.blank_count and (blank not in mask[1]) and not self.item_hist.in_buffer(mask[1]):
             # If the item detected is boo, and boo not in item_hist, append it
-            if mask[1] == 'boo.png' and not self.item_hist.in_buffer('boo.png'):
+            if mask[1] == 'boo.png':
                 self.item_hist.append(mask[1])
             # Is the item a boost_3
-            elif mask[1] == 'boost_3.png' and not self.item_hist.in_buffer('boost_3.png'):
+            elif mask[1] == 'boost_3.png':
                 self.item_hist.append(mask[1])
             # If item detected is boost_1 and boost_3 in item_hist, append it
             elif mask[1] == 'boost_1.png' and self.item_hist.in_buffer('boost_3'):
@@ -374,8 +394,14 @@ class Items(Detector):
                 self.blank_count ^= 1
                 self.item_hist.clear()
                 self.buffer.clear()
-        if DEBUG_LEVEL > 0:
+        if DEBUG_LEVEL > 2:
             print self.blank_count, self.item_hist
+
+    def constrain_roi(self, frame):
+        # Constrains frame wwith correct specs w.r.t. Items
+        h, w, _ = frame.shape
+        frame = frame[0:np.ceil(h * 0.36), :]
+        return frame
 
 
 class Fall(Detector):
@@ -404,6 +430,12 @@ class Fall(Detector):
                               info="Player fell off the map")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s fell off the map" % (self.name(), player)
+    def constrain_roi(self, frame):
+        # Constrains frame wwith correct specs w.r.t. Fall
+        h, w, _ = frame.shape
+        frame = frame[:, np.ceil(w * 0.16):np.ceil(w * 0.8)]
+        return frame
+
 
 
 class Reverse(Detector):
@@ -433,6 +465,12 @@ class Reverse(Detector):
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
 
+    def constrain_roi(self, frame):
+        # Constrains frame wwith correct specs w.r.t. Reverse
+        h, w, _ = frame.shape
+        frame = frame[0:np.ceil(h / 1.3), :]
+        return frame
+
 
 class BeginRace(Detector):
     """Handles the beginning of a race in phase_1"""
@@ -451,3 +489,9 @@ class BeginRace(Detector):
                           info="Race has begun")
         if DEBUG_LEVEL > 0:
             print '[%s]: Race started at %d seconds' % (self.name(), timestamp)
+
+    def constrain_roi(self, frame):
+        # Constrains frame to correct specs w.r.t. StartRace/BeginRace
+        h, w, _ = frame.shape
+        frame = frame[0:np.ceil(h * 0.5), np.ceil(w * 0.4):np.ceil(w * 0.75)]
+        return frame

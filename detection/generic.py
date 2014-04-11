@@ -87,27 +87,30 @@ class Detector(object):
         best_val = 1
         best_mask = None
         if len(self.default_shape) != 1:
+            frame_roi = self.constrain_roi(frame)
             for mask, shape in zip(self.masks, self.default_shape):
                 if frame.shape != shape:
                     scaled_mask = (utility.scaleImage(frame,mask[0], shape), mask[1])
                 else:
                     scaled_mask = mask
-                distances = cv.matchTemplate(frame, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                distances = cv.matchTemplate(frame_roi, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                 minval, _, minloc, _ = cv.minMaxLoc(distances)
                 if minval <= self.threshold and minval < best_val:
                     best_val = minval
                     best_mask = scaled_mask
+
             if best_mask is not None:
                 self.handle(frame, player, best_mask, cur_count, minloc)
                 if DEBUG_LEVEL > 1:
                     print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
         else:
+            frame_roi = self.constrain_roi(frame)
             for mask in self.masks:
                 if frame.shape != self.default_shape[0]:
                     scaled_mask = (utility.scaleImage(frame,mask[0], self.default_shape[0]), mask[1])
                 else:
                     scaled_mask = mask
-                distances = cv.matchTemplate(frame, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                distances = cv.matchTemplate(frame_roi, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                 minval, _, minloc, _ = cv.minMaxLoc(distances)
                 if minval <= self.threshold and minval < best_val:
                     best_val = minval
@@ -119,6 +122,10 @@ class Detector(object):
 
     def handle(self, frame, player, mask, cur_count, location):
         # Detectors should be subclassed with their own handle() function
+        raise NotImplementedError
+
+    def constrain_roi(self, frame):
+        # Detectors should be subclassed with their own constrain_region() function
         raise NotImplementedError
 
 

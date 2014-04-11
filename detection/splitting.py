@@ -180,7 +180,6 @@ class Characters(Detector):
         return ordered
 
 
-#TODO Fix map masks!!!!
 class Map(Detector):
     """Determines which map is being played (phase_0)"""
     def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
@@ -212,38 +211,40 @@ class Map(Detector):
             binary = cv.GaussianBlur(binary, (3, 3), 1)
             # Scale and grayscale the masks
             if len(self.default_shape) != 1:
+                binary_roi = self.constrain_roi(binary)
                 for mask, shape in zip(self.masks, self.default_shape):
                     if frame.shape != shape:
                         scaled_mask = (cv.cvtColor(utility.scaleImage(frame, mask[0], shape), 
                             cv.COLOR_BGR2GRAY), mask[1])
                     else:
                         scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
-                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    distances = cv.matchTemplate(binary_roi, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                     minval, _, minloc, _ = cv.minMaxLoc(distances)
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
                         best_mask = scaled_mask
                     if DEBUG_LEVEL > 2:
-                        cv.imshow('thresh', binary)
+                        cv.imshow('Map Thresh', binary_roi)
                         cv.waitKey(1)
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
                     if DEBUG_LEVEL > 0:
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
             else:
+                binary_roi = self.constrain_roi(binary)
                 for mask in self.masks:
                     if frame.shape != self.default_shape[0]:
                             scaled_mask = (cv.cvtColor(utility.scaleImage(frame,mask[0], self.default_shape[0]), 
                                 cv.COLOR_BGR2GRAY), mask[1])
                     else:
                         scaled_mask = (cv.cvtColor(mask[0], cv.COLOR_BGR2GRAY), mask[1])
-                    distances = cv.matchTemplate(binary, scaled_mask[0], cv.TM_SQDIFF_NORMED)
+                    distances = cv.matchTemplate(binary_roi, scaled_mask[0], cv.TM_SQDIFF_NORMED)
                     minval, _, minloc, _ = cv.minMaxLoc(distances)
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
                         best_mask = scaled_mask
                     if DEBUG_LEVEL > 2:
-                        cv.imshow('thresh', binary)
+                        cv.imshow('Map Thresh', binary_roi)
                         cv.waitKey(1)
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
@@ -255,6 +256,12 @@ class Map(Detector):
         self.waiting_black = True
         if DEBUG_LEVEL > 0:
             print '[%s]: Map is: %s' % (self.name(), mask[1].split('.')[0])
+
+    def constrain_roi(self, frame):
+        # Constrains frame to correct specs w.r.t. Maps
+        h, w = frame.shape
+        frame = frame[np.ceil(h * 0.4):, np.ceil(w * 0.45):np.ceil(w * 0.92)]
+        return frame
 
 
 class StartRace(Detector):
@@ -273,6 +280,11 @@ class StartRace(Detector):
             if DEBUG_LEVEL > 0:
                 print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
                 cv.waitKey(1)
+    def constrain_roi(self, frame):
+        # Constrains frame to correct specs w.r.t. StartRace/BeginRace
+        h, w, _ = frame.shape
+        frame = frame[0:np.ceil(h * 0.5), np.ceil(w * 0.4):np.ceil(w * 0.75)]
+        return frame
 
 
 class EndRace(Detector):

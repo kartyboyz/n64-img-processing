@@ -183,11 +183,15 @@ class RingBuffer(deque):
         else:
             return False;
 
+    def in_buffer(self, item):
+        '''Return True if exists, False otherwise. Used for item detection'''
+        for mask in self:
+            if item in mask:
+                return True
+        return False
+
     def exists(self, item):
-        '''
-        Determines if an item exists in the buffer. If so, return the index. 
-        Else, return -1.
-        '''
+        '''Determines if item exists in the buffer. If so, return the index. Else, return -1.'''
         for ii in xrange(len(self)):
             if item == self[ii][0]:
                 return ii
