@@ -261,18 +261,23 @@ class Lap(Detector):
 
 class Items(Detector):
     """Detector for MK64 items"""
-    def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
-        self.prev_item = ''
-        super(Items, self).__init__(masks_dir, freq, threshold, default_shape, buf_len)
-
+    def __init__(self, masks_dir, freq, threshold, default_shape, variables, buf_len=None):
+        self.item_hist = utility.RingBuffer(3) # Used to track item history
+        self.blank_count = 0 # A mod 2 variable that will be incremented. i.e. = {0, 1}
+        super(Items, self).__init__(masks_dir, freq, threshold, default_shape, variables, buf_len)
+    
     def handle(self, frame, player, mask, cur_count, location):
-        blank = 'blank_box' # Name of image containing blank item box
-        self.buffer.append(mask[1])
-        cur_item = self.buffer[len(self.buffer) - 2]
-        # If this detection was a blank box and the last was not, continue with checks
-        if (len(self.buffer) > 1) and (blank in mask[1]) and (blank not in cur_item):
-            timestamp = cur_count / self.variables['frame_rate']
-            if not self.past_timestamp:
+        blank = 'blank_box'
+        # If the mask is not in the buffer, append it
+        if not len(self.buffer) or mask[1] != self.buffer[len(self.buffer) - 1]:
+            self.buffer.append(mask[1])
+
+        # Case 1: buffer is longer than 1 and current element is blank_box
+        if (len(self.buffer) > 1) and (blank in mask[1]):
+            cur_item = self.buffer[len(self.buffer) - 2]
+            timestamp = cur_count / self.variables['frame_rate'] # Update on blank_box detection
+            # Check blank_count. If 0, create event. This implies received an item
+            if not self.blank_count:
                 # Create an event
                 self.create_event(event_type=self.name(),
                                   event_subtype='Item Get',
@@ -280,46 +285,97 @@ class Items(Detector):
                                   player=player,
                                   lap=self.variables['lap'],
                                   place=self.variables['place'],
-                                  info="Player received a %s" % (cur_item.split('.')[0]))
-                self.prev_item = cur_item
-                self.buffer.clear()
+                                  info=cur_item.split('.')[0])
+                self.blank_count ^= 1 # Toggle
+                self.item_hist.append(cur_item)
                 if DEBUG_LEVEL > 0:
-                    print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
-
-            # Has been more than a second since the last event
-            elif (timestamp - self.past_timestamp) > 0.45:
-                # Was the last item boo? If so, the item received can only be detected on use.
-                # Therefore, it doesn't matter if every item in the buffer is the same besides the last element.
-                if self.prev_item == 'boo.png':
-                    print self.prev_item
-                    # Create an event
-                    self.create_event(event_type=self.name(),
-                                      event_subtype='Item Get',
-                                      timestamp=np.floor(timestamp),
-                                      player=player,
-                                      lap=self.variables['lap'],
-                                      place=self.variables['place'],
-                                      info="Player received a %s" % (cur_item.split('.')[0]))
-                    self.buffer.clear()
-                    if DEBUG_LEVEL > 0:
-                        print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
-                # Are all items besides the last item in the buffer equal
-                elif self.buffer.count(cur_item) != (len(self.buffer) - 1):
-                    # If the current item is a single mushroom and the previous item was triple mushroom, do nothing.
-                    if not (cur_item == 'boost_1.png' and self.prev_item == 'boost_3.png'):
-                        # Create an event
-                        self.create_event(event_type=self.name(),
-                                          event_subtype='Item Get',
+                    print "[%s]: Player %d has a %s" % (self.name(), player, cur_item.split('.')[0])
+            # Already saw a blank_box. Been long enough since last blank_box
+            elif self.blank_count and (timestamp - self.past_timestamp) > 0.45:
+                # item_hist length > 1
+                if len(self.item_hist) > 1:
+                    # If boo is last item in item_hist, item was stolen
+                    if self.item_hist[len(self.item_hist) - 1] == 'boo.png':
+                        # Must check if the stolen item was a triple boost
+                        if 'boost_3.png' in self.item_hist and 'boost_1' in self.item_hist:
+                            self.create_event(event_type=self.name(),
+                                          event_subtype='Item Stolen',
                                           timestamp=np.floor(timestamp),
                                           player=player,
                                           lap=self.variables['lap'],
                                           place=self.variables['place'],
-                                          info="Player received a %s" % (cur_item.split('.')[0]))
-                        self.buffer.clear()
-                        if DEBUG_LEVEL > 0:
-                            print "[%s]: Player %s has %s" % (self.name(), player, cur_item)
-                self.prev_item = cur_item
-            self.past_timestamp = timestamp
+                                          info="boost_3")
+                            self.blank_count ^= 1
+                            self.item_hist.clear()
+                            if DEBUG_LEVEL > 0:
+                                print "[%s]: Player %d was robbed of a triple boost (boost_3)" % (self.name(), player)
+                        else:
+                            if DEBUG_LEVEL > 0:
+                                print "[%s]: Player %d was robbed of a %s" % \
+                                    (self.name(), player, self.item_hist[len(self.item_hist) - 2])
+                            self.create_event(event_type=self.name(),
+                                            event_subtype='Item Stolen',
+                                            timestamp=np.floor(timestamp),
+                                            player=player,
+                                            lap=self.variables['lap'],
+                                            place=self.variables['place'],
+                                            info=self.item_hist[len(self.item_hist) - 2].split('.')[0])
+                            self.blank_count ^= 1
+                            self.item_hist.clear()
+                    # If boo is the first item in item_hist, an item was stolen
+                    elif self.item_hist[0] == 'boo.png':
+                        if 'boost_3.png' in self.item_hist and 'boost_1.png' in self.item_hist:
+                            self.create_event(event_type=self.name(),
+                                            event_subtype='Item Get',
+                                            timestamp=np.floor(timestamp),
+                                            player=player,
+                                            lap=self.variables['lap'],
+                                            place=self.variables['place'],
+                                            info="boost_3")
+                            self.blank_count ^= 1
+                            self.item_hist.clear()
+                            if DEBUG_LEVEL > 0:
+                                print "[%s]: Player %d received a boost_3" % (self.name(), player)
+                    # Must check if we got a triple boost
+                    elif self.item_hist[len(self.item_hist) - 1] == 'boost_1.png' and \
+                        self.item_hist[len(self.item_hist) - 2] == 'boost_3.png':
+                        self.item_hist.clear()
+                        self.blank_count ^= 1
+                    # We've received a blank box, that meets timeouts criteria
+                    # The last item was not a boo or a boost_3. Therefore, it must be an event
+                else:
+                    self.create_event(event_type=self.name(),
+                                  event_subtype='Item Get',
+                                  timestamp=np.floor(timestamp),
+                                  player=player,
+                                  lap=self.variables['lap'],
+                                  place=self.variables['place'],
+                                  info=self.item_hist[len(self.item_hist) - 1])
+                    self.blank_count ^= 1
+                    if DEBUG_LEVEL > 0:
+                        print "[%s] Player %d received a %s" % \
+                            (self.name(), player, self.item_hist[len(self.item_hist) - 1])
+            self.past_timestamp = timestamp # update the past timestamp to reflect the blank_box detection
+            self.buffer.clear()
+        
+        # Case 2: Already saw 
+        elif self.blank_count and (blank not in mask[1]) and not self.item_hist.in_buffer(mask[1]):
+            # If the item detected is boo, and boo not in item_hist, append it
+            if mask[1] == 'boo.png' and not self.item_hist.in_buffer('boo.png'):
+                self.item_hist.append(mask[1])
+            # Is the item a boost_3
+            elif mask[1] == 'boost_3.png' and not self.item_hist.in_buffer('boost_3.png'):
+                self.item_hist.append(mask[1])
+            # If item detected is boost_1 and boost_3 in item_hist, append it
+            elif mask[1] == 'boost_1.png' and self.item_hist.in_buffer('boost_3'):
+                self.item_hist.append(mask[1])
+            # If item found after blank_box is not boo, boost_1, or same item, clear item_hist and toggle blank_count
+            else:
+                self.blank_count ^= 1
+                self.item_hist.clear()
+                self.buffer.clear()
+        if DEBUG_LEVEL > 0:
+            print self.blank_count, self.item_hist
 
 
 class Fall(Detector):
