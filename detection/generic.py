@@ -1,8 +1,8 @@
-''' Modularized detection suite containing the base Detector class
-    
+"""
+Modularized detection suite containing the base Detector class
     Authors: Johan Mickos   jmickos@bu.edu
              Josh Navon     navonj@bu.edu
-'''
+"""
 # Standard library
 import os
 
@@ -19,7 +19,7 @@ from config import DEBUG_LEVEL
 
 
 class Detector(object):
-    """Super (and abstract) class for all detectors, written specifically for MK64 events """
+    """Super (and abstract) class for all detectors, written specifically for MK64 events."""
     def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
         if type(self) is Detector:
             raise Exception("<Detector> should be subclassed.")
@@ -39,9 +39,11 @@ class Detector(object):
         self.past_timestamp = 0.0 # To be used for debouncing events
 
     def name(self):
+        """Returns the name of the class."""
         return self.__class__.__name__
 
     def is_active(self, detector_name=None):
+        """Return the detector activity state."""
         if detector_name == None:
             dname = self.name()
         else:
@@ -49,6 +51,7 @@ class Detector(object):
         return self.detector_states[dname]
 
     def activate(self, detector_name=None):
+        """Activates the detector given/self."""
         if detector_name == None:
             dname = self.name()
         else:
@@ -56,6 +59,7 @@ class Detector(object):
         self.detector_states[dname] = True
 
     def deactivate(self, detector_name=None):
+        """Deactivates the detector given/self."""
         if detector_name == None:
             dname = self.name()
         else:
@@ -63,27 +67,31 @@ class Detector(object):
         self.detector_states[dname] = False
 
     def set_race_events_list(self, race_events_list):
+        """Setter function for self.race_events_list"""
         self.race_events_list = race_events_list
 
     def set_states(self, states):
+        """Setter function for self.detector_states."""
         self.detector_states = states
 
     def set_variables(self, variables):
+        """Setter function for self.variables."""
         self.variables = variables
 
     def create_event(self, **kwargs):
+        """Append/Setter function for events."""
         events = self.variables['events']
         events.append(kwargs)
         self.variables['events'] = events
 
     def detect(self, frame, cur_count, player):
-        """ Determines whether and how to process current frame"""
+        """Determines whether and how to process current frame."""
         if cur_count % self.freq is 0:
             frame = cv.GaussianBlur(frame, (3, 3), 1)
             self.process(frame, cur_count, player)
 
     def process(self, frame, cur_count, player):
-        """ Compares pre-loaded masks to current frame"""
+        """Compares pre-loaded masks to current frame."""
         best_val = 1
         best_mask = None
         if len(self.default_shape) != 1:
@@ -121,27 +129,36 @@ class Detector(object):
                     print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
 
     def handle(self, frame, player, mask, cur_count, location):
-        # Detectors should be subclassed with their own handle() function
+        """
+        Detectors should be subclassed with their own handle() function.
+        raises a NotImplementedError if the subclass does not implement it.
+        """
         raise NotImplementedError
 
     def constrain_roi(self, frame):
-        # Detectors should be subclassed with their own constrain_region() function
+        """
+        Detectors should be subclassed with their own constrain_region() function.
+        raises a NotImplementedError if the subclass does not implement it.
+        """
         raise NotImplementedError
 
 
 class BlackFrame(Detector):
-    """Faux-detector for determining if frame is black.
-    Most of the functions are overriding the superclass.
-    Updates race variables that race has stopped if above is true
-    """
+    """Faux-detector for determining if frame is black."""
     def __init__(self):
+        """Needs no instance variables. Overrides superclass method."""
         pass
 
     def detect(self, frame, cur_count):
+        """
+        Sets variables['is_black'] False, and pass control to process().
+        Overrides superclass method.
+        """
         self.variables['is_black'] = False
         self.process(frame, cur_count)
 
     def process(self, frame, cur_count):
+        """Checks frame for number of black pixels. Overrides superclass method."""
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
         _, gray = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)
         black_count = float(np.sum(gray)) / float(gray.size)
@@ -150,13 +167,14 @@ class BlackFrame(Detector):
             self.handle(frame, cur_count)
 
     def handle(self, frame, cur_count):
+        """Perform checks and debounce. Overrides superclass method."""
         self.variables['is_black'] = True
         if DEBUG_LEVEL > 1:
             print "[%s]: Handled" % (self.name())
 
 
 class Engine():
-    """Driving module that feeds Workers video frames"""
+    """Driving module that feeds Workers video frames."""
     def __init__(self, variables, video_source):
         self.name = video_source
         self.capture = cv.VideoCapture(video_source)
@@ -171,19 +189,19 @@ class Engine():
         print "[%s] initialization complete." % (self.__class__.__name__)
 
     def setup_processes(self, num, regions):
-        """Generates child processes"""
+        """Generates child processes."""
         self.barrier = utility.Barrier(parties=(num+1))
         self.manager = parallel.ProcessManager(num, regions, self.frame, self.barrier, self.variables)
 
     def add_detectors(self, detect_list):
-        """Appends new detectors to Workers, wrapping the ProcessManager"""
+        """Appends new detectors to Workers, wrapping the ProcessManager."""
         if self.barrier is None:
             raise RuntimeError("You need to call setup_processes() first")
         self.manager.set_detectors(detect_list)
         self.manager.start_workers()
 
     def process(self):
-        """Loops through video source, feeding child processes new data"""
+        """Loops through video source, feeding child processes new data."""
         frame_count = 0
         size = self.frame.size
         while True:
@@ -216,14 +234,14 @@ class Engine():
                 return None
 
     def clear_buffer(self, offset):
-        """Cleans up the rest of the buffer
-
-        Needed so that Workers don't process same data many times
+        """
+        Cleans up the rest of the buffer.
+        Needed so that Workers don't process same data many times.
         """
         self.manager.image[offset:] = 0
 
     def cleanup(self):
-        """Frees memory, alerts child processes to finish"""
+        """Frees memory, alerts child processes to finish."""
         self.manager.close()
         self.capture.release()
         self.barrier.abort()

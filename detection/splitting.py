@@ -1,8 +1,8 @@
-''' Modularized detection suite containing the phase_0 classes.
-    
+"""
+Modularized detection suite containing the phase_0 classes.
     Authors: Johan Mickos   jmickos@bu.edu
              Josh Navon     navonj@bu.edu
-'''
+"""
 
 # Standard library
 import itertools
@@ -20,10 +20,13 @@ from config import DEBUG_LEVEL
 
 
 class BoxExtractor(Detector):
+    """This class locates and stores box coordinates in frames."""
     def __init__(self,):
+        """"Class constructor. Overrides superclass method."""
         self.set = False
 
     def detect(self, cur_frame, frame_cnt):
+        """Perform box extraction. Overrides superclass method."""
         OFFSET = 10
         # Force black frame to ensure first coord is top left of frame
         border_frame = cv.copyMakeBorder(cur_frame, OFFSET, OFFSET, OFFSET, OFFSET, cv.BORDER_CONSTANT, (0, 0, 0))
@@ -75,11 +78,17 @@ class BoxExtractor(Detector):
 
 
 class Characters(Detector):
+    """Detector for detecting characters in MK64."""
     def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
+        """
+        Instantiates necessary variables and passes control off to superclass constructor.
+        Overrides superclass method.
+        """
         self.waiting_black = False
         super(Characters, self).__init__(masks_dir, freq, threshold, default_shape, buf_len)
 
     def detect(self, frame, cur_count, player):
+        """Determines whether and how to process current frame. Overrides superclass method."""
         height, width, _ = frame.shape
         focus_region = frame[np.ceil(height * 0.25) : np.ceil(height * 0.95),
                         np.ceil(width * 0.25) : np.ceil(width * 0.75)]
@@ -95,7 +104,7 @@ class Characters(Detector):
                 cv.waitKey(1)
 
     def process(self, frame, cur_count, player):
-        """ Compares pre-loaded masks to current frame"""
+        """ Compares pre-loaded masks to current frame. Overrides superclass method."""
         player = 0
         if len(self.default_shape) != 1:
             for mask, shape in zip(self.masks, self.default_shape):
@@ -123,6 +132,7 @@ class Characters(Detector):
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval)
 
     def handle(self, frame, player, mask, cur_count, location):
+        """Perform checks and store variables. Overrides superclass method."""
         self.waiting_black = True
         timestamp = cur_count / self.variables['frame_rate']
         idx = self.buffer.exists(mask[1])
@@ -132,6 +142,7 @@ class Characters(Detector):
             self.buffer.append((mask[1], location, timestamp))
 
     def store_players(self, frame):
+        """Stores players in the state variable."""
         self.waiting_black = False
         self.deactivate()
         ordered = list()
@@ -161,7 +172,7 @@ class Characters(Detector):
         self.variables['num_players'] = len(ordered)
 
     def sort_characters(self, characters, frame):
-        """Sorting algorithm that ranks based on quadrant"""
+        """Sorting algorithm that ranks based on quadrant."""
         ordered = list()
         center_y, center_x, _ = frame.shape
         center_x /= 2
@@ -181,13 +192,18 @@ class Characters(Detector):
 
 
 class Map(Detector):
-    """Determines which map is being played (phase_0)"""
+    """Determines which map is being played."""
     def __init__(self, masks_dir, freq, threshold, default_shape, buf_len=None):
+        """
+        Instantiates necessary variables and passes control off to superclass constructor.
+        Overrides superclass method.
+        """
         self.waiting_black = False
         self.map = ''
         super(Map, self).__init__(masks_dir, freq, threshold, default_shape, buf_len)
 
     def detect(self, frame, cur_count, player):
+        """Determines whether and how to process current frame. Overrides superclass method."""
         if self.variables['is_black']:
             if self.waiting_black:
                 self.variables['map'] = self.map.split('.')[0]
@@ -200,7 +216,7 @@ class Map(Detector):
             self.process(frame, cur_count, player)
 
     def process(self, frame, cur_count, player):
-        player = 0
+        """ Compares pre-loaded masks to current frame. Overrides superclass method."""
         best_val = 1
         best_mask = None
 
@@ -252,13 +268,14 @@ class Map(Detector):
                         print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
 
     def handle(self, frame, player, mask, cur_count, location):
+        """Set variables. Overrides superclass method."""
         self.map = mask[1]
         self.waiting_black = True
         if DEBUG_LEVEL > 0:
             print '[%s]: Map is: %s' % (self.name(), mask[1].split('.')[0])
 
     def constrain_roi(self, frame):
-        # Constrains frame to correct specs w.r.t. Maps
+        """"Constrains frame w.r.t. Maps. Overrides superclass method."""
         h, w = frame.shape
         frame = frame[np.ceil(h * 0.4):, np.ceil(w * 0.45):np.ceil(w * 0.92)]
         return frame
@@ -267,7 +284,8 @@ class Map(Detector):
 class StartRace(Detector):
     """Handles the beginning of a race in phase_0"""
     def handle(self, frame, player, mask, cur_count, location):
-            self.variables['is_started'] = True
+        """Store variables and toggle detectors. Overrides superclass method."""
+        self.variables['is_started'] = True
             self.deactivate()
             self.activate('EndRace')
             self.deactivate('Characters')
@@ -281,7 +299,7 @@ class StartRace(Detector):
                 print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
                 cv.waitKey(1)
     def constrain_roi(self, frame):
-        # Constrains frame to correct specs w.r.t. StartRace/BeginRace
+        """Constrains frame w.r.t. StartRace/BeginRace. Overrides superclass method."""
         h, w, _ = frame.shape
         frame = frame[0:np.ceil(h * 0.5), np.ceil(w * 0.4):np.ceil(w * 0.75)]
         return frame
@@ -290,9 +308,11 @@ class StartRace(Detector):
 class EndRace(Detector):
     """Handles the end of a race (phase_0)"""
     def __init__(self):
+        """Class constructor. Overrides superclass method."""
         pass
 
     def detect(self, frame, cur_count, player):
+        """Determines whether and how to process current frame. Overrides superclass method."""
         if self.variables['is_started']:
             if self.variables['is_black']:
                 # Either rage-quit or clean race finish (we'll handle rage quits later)
@@ -301,6 +321,7 @@ class EndRace(Detector):
             self.deactivate()
 
     def handle(self, cur_count):
+        """Store variables and toggle detectors. Overrides superclass method."""
         self.variables['is_started'] = False
         # Populate dictionary with race duration
         self.variables['duration'] = np.ceil((cur_count / self.variables['frame_rate']) - self.variables['start_time'])

@@ -1,3 +1,9 @@
+"""
+This module contains all necessary classes for multiprocessing our detectors.
+This includes Worker and ProcessManager.
+    Authors: Johan Mickos   jmickos@bu.edu
+             Josh Navon     navonj@bu.edu
+"""
 import copy
 import ctypes
 import multiprocessing
@@ -20,8 +26,8 @@ BUFFER_LENGTH = 400
 
 class Worker(multiprocessing.Process):
     """Worker process containing detectors, shared memory, and event triggers"""
-    def __init__(self, shared_memory, barrier, bounds, shape,
-                 event, variables, num):
+    def __init__(self, shared_memory, barrier, bounds, shape, event, variables, num):
+        """Class constructor. Overrides superclass constructor."""
         multiprocessing.Process.__init__(self)
         self.num = num
         self.variables = variables
@@ -44,7 +50,7 @@ class Worker(multiprocessing.Process):
         self.toggle = 1
 
     def set_detectors(self, detector_list):
-        """Wrapper for adding more detectors, setting their states & variables"""
+        """Wrapper for adding more detectors, setting their states & variables."""
         for detector in detector_list:
             self.detector_states[detector.name()] = True
             # We have to ensure no detectors are shared
@@ -55,8 +61,7 @@ class Worker(multiprocessing.Process):
             d.set_variables(self.variables)
 
     def run(self):
-        """Waits for & consumes frame buffer, then applies Detectors on each frame
-
+        """Waits for & consumes frame buffer, then applies Detectors on each frame.
         The frame buffer is a C-like byte array, populated by frame pixels. It contains
         at most BUFFER_LENGTH frames at offsets defined by frame.size = HEIGHT * WIDTH * DEPTH.
         This function accesses each frame individually by these offsets and runs Detector.detect()
@@ -119,7 +124,7 @@ class Worker(multiprocessing.Process):
         print '[%s] Exiting' % self.name
 
 class ProcessManager(object):
-    """Handles subprocesses & their shared memory"""
+    """Handles subprocesses & their shared memory."""
     def __init__(self, num, regions, video_source, barrier, variables):
         if regions is None:
             # Assume it's a 'flag' for Phase 0, so just let it trickle down into Workers
@@ -144,21 +149,22 @@ class ProcessManager(object):
                                num=i+1) for i in range(num)]
 
     def set_detectors(self, detect_list):
-        """Wrapper for Workers"""
+        """Wrapper for Workers."""
         for worker in self.workers:
             worker.set_detectors(detect_list)
 
     def start_workers(self):
+        """Function to start workers."""
         for worker in self.workers:
             worker.start()
 
     def detect(self):
-        """Alerts workers that new data is available for detection"""
+        """Alerts workers that new data is available for detection."""
         for trigger in self.triggers:
             trigger.set()
 
     def close(self):
-        """Orders all contained workers to stop their tasks"""
+        """Orders all contained workers to stop their tasks."""
         for idx, worker in enumerate(self.workers):
             worker.done.set()
             self.triggers[idx].set()

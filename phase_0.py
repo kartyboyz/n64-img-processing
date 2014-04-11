@@ -1,23 +1,26 @@
 #!/usr/bin/env python
-"""Phase 0 of MK64 Detection Suite
+"""
+Phase 0 of MK64 Detection Suite.
 
 Initial phase of detection, designed to generate data regarding
-starts/ends of races in a MK64 gameplay video & send it back to the DB
+starts/ends of races in a MK64 gameplay video & send it back to the DB.
 
 Required Detectors:
-    BlackFrame
-        Used for optimization (skipping frames) and
-        to determine rage-quits/end of race
-    BoxExtractor
-        Generates "box" data for Workers
-    Characters
-        Evaluates the characters chosen for the given race
-    StartRace
-        Finds Lakitu who indicates the start of a race
-    EndRace
-        Wrapper around BlackFrame to determine the end of a race
-    Map
-        Evaluates which MK64 map is being played
+    BlackFrame:
+        For optimization (frame skips) and to determine rage-quits/end of race.
+    BoxExtractor:
+        Generates "box" data for Workers.
+    Characters:
+        Evaluates the characters chosen for the given race.
+    StartRace:
+        Finds Lakitu who indicates the start of a race.
+    EndRace:
+        Wrapper around BlackFrame to determine the end of a race.
+    Map:
+        Evaluates which MK64 map is being played.
+
+    Authors: Johan Mickos   jmickos@bu.edu
+             Josh Navon     navonj@bu.edu
 """
 
 import sys

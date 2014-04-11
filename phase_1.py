@@ -1,19 +1,19 @@
 #!/usr/bin/env python
-"""Phase 0 of MK64 Detection Suite
-
-Initial phase of detection, designed to generate data regarding
-starts/ends of races in a MK64 gameplay video & send it back to the DB
-
+"""
+Phase 1 of MK64 Detection Suite.
+Processing phase of detection on each race.
+    Authors: Johan Mickos   jmickos@bu.edu
+             Josh Navon     navonj@bu.edu
 """
 
 import sys
 
 import detection
 def debug_main(session_id, video_file):
-    """Configuration Variables/Data Setup"""
+    """Configuration Variables/Data Setup."""
     VARIABLES = [detection.config.player() for _ in range(4)]
 
-    """Detector Setup"""
+    # Detector Setup
     BLACK = detection.BlackFrame()
     ITEMS = detection.Items(masks_dir='./masks/items/',
                             freq=1,
@@ -56,22 +56,22 @@ def debug_main(session_id, video_file):
                         freq=1,
                         threshold=0.08,
                         default_shape=[(237,314,3)])
-    """Engine Setup"""
+    # Engine Setup
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
     ENGINE.setup_processes(num=4, regions=[[[4, 317], [0, 237]], [[320, 638], [0, 237]], [[4, 317], [242, 475]], [[320, 638], [242, 475]]])
 
     ENGINE.add_detectors([BLACK, LAP, BEGIN_RACE, FINISH_RACE, POSITION_CHANGE, SHORTCUT, ITEMS, FALL, REVERSE])
 
-    """Main"""
+    # Main
     rv = ENGINE.process()
     return rv
 
 
 def main(player_regions, video_file):
-    """Configuration Variables/Data Setup"""
+    """Configuration Variables/Data Setup."""
     VARIABLES = [detection.config.player() for _ in range(len(player_regions))]
-    """Detector Setup"""
+    # Detector Setup
     BLACK = detection.BlackFrame()
     ITEMS = detection.Items(masks_dir='./masks/items/',
                             freq=1,
@@ -97,18 +97,19 @@ def main(player_regions, video_file):
                         threshold=0.08,
                         default_shape=[(237,314,3)])
 
-    """Engine Setup"""
+    # Engine Setup
     ENGINE = detection.Engine(variables=VARIABLES,
                               video_source=video_file.name)
     ENGINE.setup_processes(num=len(player_regions), regions=player_regions)
     ENGINE.add_detectors([BLACK, LAP, BEGIN_RACE, FINISH_RACE, POSITION_CHANGE, SHORTCUT, ITEMS])
 
-    """Main"""
+    # Main
     rv = ENGINE.process()
     return VARIABLES
 
 
 def instructions():
+    """Outputs instructions to stdout."""
     print "Debugger's Instructions:"
     print "\t<ESC> exits program"
     print "\t<space> pauses/unpauses current frame\n\n"
