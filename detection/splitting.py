@@ -286,18 +286,18 @@ class StartRace(Detector):
     def handle(self, frame, player, mask, cur_count, location):
         """Store variables and toggle detectors. Overrides superclass method."""
         self.variables['is_started'] = True
-            self.deactivate()
-            self.activate('EndRace')
-            self.deactivate('Characters')
-            self.deactivate('BoxExtractor')
-            self.deactivate('Map')
-            # Lock in player boxes (should be sorted alreadY)
-            self.variables['player_regions'] = self.variables['player_regions'][0:self.variables['num_players']]
-            # Populate dictionary with start time
-            self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 2
-            if DEBUG_LEVEL > 0:
-                print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
-                cv.waitKey(1)
+        self.deactivate()
+        self.activate('EndRace')
+        self.deactivate('Characters')
+        self.deactivate('BoxExtractor')
+        self.deactivate('Map')
+        # Lock in player boxes (should be sorted alreadY)
+        self.variables['player_regions'] = self.variables['player_regions'][0:self.variables['num_players']]
+        # Populate dictionary with start time
+        self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 2
+        if DEBUG_LEVEL > 0:
+            print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
+            cv.waitKey(1)
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. StartRace/BeginRace. Overrides superclass method."""
         h, w, _ = frame.shape

@@ -59,7 +59,7 @@ class Shortcut(Detector):
                             player=player,
                             lap=self.variables['lap'],
                             place=self.variables['place'],
-                            info="In shortcut cave")
+                            info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
         # Does it meet the specifications for debouncing?
@@ -71,7 +71,7 @@ class Shortcut(Detector):
                             player=player,
                             lap=self.variables['lap'],
                             place=self.variables['place'],
-                            info="In shortcut cave")
+                            info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
 
@@ -133,17 +133,17 @@ class FinishRace(Detector):
         # Deactivate the detector & PositionChange to be safe, and set the final place state variable
         self.deactivate()
         self.deactivate('PositionChange')
-        self.variables['place'] = int(mask[1].split('_')[0])
+        self.variables['place'] = int(mask[1][0])
         timestamp = cur_count / self.variables['frame_rate']
-        self.create_event(event_type='Laps',
-                          event_subtype=self.name(),
-                          timestamp=np.floor(timestamp),
-                          player=player,
-                          lap=self.variables['lap'],
-                          place=self.variables['place'],
-                          info="Player %s finishing place: %s" % (player, mask[1].split('_')[0]))
+        self.create_event(event_type='Lap',
+                        event_subtype="Finish",
+                        timestamp=np.floor(timestamp),
+                        player=player,
+                        lap=self.variables['lap'],
+                        place=self.variables['place'],
+                        info=mask[1][0])
         if DEBUG_LEVEL > 0:
-            print "[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1].split('_')[0])
+            print "[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1][0])
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. FinishRace. Overrides superclass method."""
@@ -207,39 +207,39 @@ class PositionChange(Detector):
     def handle(self, frame, player, mask, cur_count, location):
         """Perform checks and debounce. Overrides the superclass method."""
         # Append the mask '#_place.png' to the ring buffer
-        self.buffer.append(mask[1])
+        self.buffer.append(mask[1][0])
         # If this is the first place that is given, store it
         timestamp = cur_count / self.variables['frame_rate']
         if len(self.buffer) == 1:
             # Update place state variable and create an event
-            self.variables['place'] = int(mask[1].split('_')[0])
+            self.variables['place'] = int(mask[1][0])
             self.create_event(event_type=self.name(),
-                              event_subtype='Initial',
-                              timestamp=np.floor(timestamp),
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info=0)
+                            event_subtype='Initial',
+                            timestamp=np.floor(timestamp),
+                            player=player,
+                            lap=self.variables['lap'],
+                            place=self.variables['place'],
+                            info=mask[1][0])
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1])
         # Check if the found mask is different than the previous one
-        elif mask[1].split('_')[0] != self.buffer[len(self.buffer) - 2].split('_')[0]:
+        elif mask[1][0] != self.buffer[len(self.buffer) - 2]:
             # Update place state variable and create an event
-            self.variables['place'] = int(mask[1].split('_')[0])
-            if int(mask[1].split('_')[0]) > int(self.buffer[len(self.buffer) - 2].split('_')[0]):
+            self.variables['place'] = int(mask[1][0])
+            if int(mask[1][0]) > int(self.buffer[len(self.buffer) - 2]):
                 subtype = 'Passed'
             else:
                 subtype = 'Passing'
             self.create_event(event_type=self.name(),
-                              event_subtype=subtype,
-                              timestamp=timestamp,
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info=self.buffer[0].split('_')[0])
+                            event_subtype=subtype,
+                            timestamp=timestamp,
+                            player=player,
+                            lap=self.variables['lap'],
+                            place=self.variables['place'],
+                            info=mask[1][0])
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
-                    self.buffer[len(self.buffer) - 2].split('_')[0], self.buffer[len(self.buffer) - 1].split('_')[0])
+                    self.buffer[len(self.buffer) - 2], self.buffer[len(self.buffer) - 1])
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. PositionChange. Overrides superclass method."""
@@ -261,12 +261,12 @@ class Lap(Detector):
                 # Increment the lap state variable and create an event
                 self.variables['lap'] += 1
                 self.create_event(event_type='Lap',
-                                event_subtype='Lap Change',
+                                event_subtype='Few',
                                 timestamp=np.floor(timestamp),
                                 player=player,
                                 lap=self.variables['lap'],
                                 place=self.variables['place'],
-                                info="Player is now on lap %s" % (self.variables['lap']))
+                                info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
             # Fastest lap ever is 2.39 seconds on Wario Stadium (SC)
@@ -275,12 +275,12 @@ class Lap(Detector):
                 # Increment the lap state variable and create an event
                 self.variables['lap'] += 1
                 self.create_event(event_type='Lap',
-                                event_subtype='Lap Change',
+                                event_subtype='Few',
                                 timestamp=np.floor(timestamp),
                                 player=player,
                                 lap=self.variables['lap'],
                                 place=self.variables['place'],
-                                info="Player is now on lap %s" % (self.variables['lap']))
+                                info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
         # Deactivate on lap 3 detection
@@ -302,7 +302,7 @@ class Items(Detector):
     
     def handle(self, frame, player, mask, cur_count, location):
         """Perform checks and debounce. Overrides superclass method."""
-        blank = 'blank_box'
+        blank = 'BlankBox'
         # If the mask is not in the buffer, append it
         if not len(self.buffer) or mask[1] != self.buffer[len(self.buffer) - 1]:
             self.buffer.append(mask[1])
@@ -315,12 +315,12 @@ class Items(Detector):
             if not self.blank_count:
                 # Create an event
                 self.create_event(event_type=self.name(),
-                                  event_subtype='Item Get',
-                                  timestamp=np.floor(timestamp),
-                                  player=player,
-                                  lap=self.variables['lap'],
-                                  place=self.variables['place'],
-                                  info=cur_item.split('.')[0])
+                                event_subtype='ItemGet',
+                                timestamp=np.floor(timestamp),
+                                player=player,
+                                lap=self.variables['lap'],
+                                place=self.variables['place'],
+                                info=cur_item.split('.')[0])
                 self.blank_count ^= 1 # Toggle
                 self.item_hist.append(cur_item)
                 if DEBUG_LEVEL > 0:
@@ -330,26 +330,26 @@ class Items(Detector):
                 # item_hist length > 1
                 if len(self.item_hist) > 1:
                     # If boo is last item in item_hist, item was stolen
-                    if self.item_hist[len(self.item_hist) - 1] == 'boo.png':
+                    if self.item_hist[len(self.item_hist) - 1] == 'Boo.png':
                         # Must check if the stolen item was a triple boost
-                        if 'boost_3.png' in self.item_hist and 'boost_1' in self.item_hist:
+                        if 'TripleMushroom.png' in self.item_hist and 'SingleMushroom.png' in self.item_hist:
                             self.create_event(event_type=self.name(),
-                                          event_subtype='Item Stolen',
-                                          timestamp=np.floor(timestamp),
-                                          player=player,
-                                          lap=self.variables['lap'],
-                                          place=self.variables['place'],
-                                          info="boost_3")
+                                        event_subtype='ItemStolen',
+                                        timestamp=np.floor(timestamp),
+                                        player=player,
+                                        lap=self.variables['lap'],
+                                        place=self.variables['place'],
+                                        info="TripleMushroom")
                             self.blank_count ^= 1
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 0:
-                                print "[%s]: Player %d was robbed of a triple boost (boost_3)" % (self.name(), player)
+                                print "[%s]: Player %d was robbed of a triple mushroom" % (self.name(), player)
                         else:
                             if DEBUG_LEVEL > 0:
                                 print "[%s]: Player %d was robbed of a %s" % \
                                     (self.name(), player, self.item_hist[len(self.item_hist) - 2])
                             self.create_event(event_type=self.name(),
-                                            event_subtype='Item Stolen',
+                                            event_subtype='ItemStolen',
                                             timestamp=np.floor(timestamp),
                                             player=player,
                                             lap=self.variables['lap'],
@@ -358,34 +358,34 @@ class Items(Detector):
                             self.blank_count ^= 1
                             self.item_hist.clear()
                     # If boo is the first item in item_hist, an item was stolen
-                    elif self.item_hist[0] == 'boo.png':
-                        if 'boost_3.png' in self.item_hist and 'boost_1.png' in self.item_hist:
+                    elif self.item_hist[0] == 'Boo.png':
+                        if 'TripleMushroom.png' in self.item_hist and 'SingleMushroom.png' in self.item_hist:
                             self.create_event(event_type=self.name(),
-                                            event_subtype='Item Get',
+                                            event_subtype='ItemGet',
                                             timestamp=np.floor(timestamp),
                                             player=player,
                                             lap=self.variables['lap'],
                                             place=self.variables['place'],
-                                            info="boost_3")
+                                            info="TripleMushroom")
                             self.blank_count ^= 1
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 0:
-                                print "[%s]: Player %d received a boost_3" % (self.name(), player)
+                                print "[%s]: Player %d received a triple mushroom" % (self.name(), player)
                     # Must check if we got a triple boost
-                    elif self.item_hist[len(self.item_hist) - 1] == 'boost_1.png' and \
-                        self.item_hist[len(self.item_hist) - 2] == 'boost_3.png':
+                    elif self.item_hist[len(self.item_hist) - 1] == 'SingleMushroom.png' and \
+                        self.item_hist[len(self.item_hist) - 2] == 'TripleMushroom.png':
                         self.item_hist.clear()
                         self.blank_count ^= 1
                     # We've received a blank box, that meets timeouts criteria
                     # The last item was not a boo or a boost_3. Therefore, it must be an event
                 else:
                     self.create_event(event_type=self.name(),
-                                  event_subtype='Item Get',
-                                  timestamp=np.floor(timestamp),
-                                  player=player,
-                                  lap=self.variables['lap'],
-                                  place=self.variables['place'],
-                                  info=self.item_hist[len(self.item_hist) - 1])
+                                    event_subtype='ItemGet',
+                                    timestamp=np.floor(timestamp),
+                                    player=player,
+                                    lap=self.variables['lap'],
+                                    place=self.variables['place'],
+                                    info=self.item_hist[len(self.item_hist) - 1])
                     self.blank_count ^= 1
                     if DEBUG_LEVEL > 0:
                         print "[%s] Player %d received a %s" % \
@@ -395,16 +395,16 @@ class Items(Detector):
         
         # Case 2: Already saw 
         elif self.blank_count and (blank not in mask[1]) and not self.item_hist.in_buffer(mask[1]):
-            # If the item detected is boo, and boo not in item_hist, append it
-            if mask[1] == 'boo.png':
+            # If the item detected is Boo, and Boo not in item_hist, append it
+            if mask[1] == 'Boo.png':
                 self.item_hist.append(mask[1])
-            # Is the item a boost_3
-            elif mask[1] == 'boost_3.png':
+            # Is the item a TripleMushroom
+            elif mask[1] == 'TripleMushroom.png':
                 self.item_hist.append(mask[1])
-            # If item detected is boost_1 and boost_3 in item_hist, append it
-            elif mask[1] == 'boost_1.png' and self.item_hist.in_buffer('boost_3'):
+            # If item detected is SingleMushroom and TripleMushroom in item_hist, append it
+            elif mask[1] == 'SingleMushroom.png' and self.item_hist.in_buffer('TripleMushroom'):
                 self.item_hist.append(mask[1])
-            # If item found after blank_box is not boo, boost_1, or same item, clear item_hist and toggle blank_count
+            # If item found after BlankBox is not Boo, SingleMushroom, or same item, clear item_hist and toggle blank_count
             else:
                 self.blank_count ^= 1
                 self.item_hist.clear()
@@ -427,23 +427,23 @@ class Fall(Detector):
         if not self.past_timestamp:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
-                              event_subtype=self.name(),
-                              timestamp=np.floor(timestamp),
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info="Player fell off the map")
+                            event_subtype=self.name(),
+                            timestamp=np.floor(timestamp),
+                            player=player,
+                            lap=self.variables['lap'],
+                            place=self.variables['place'],
+                            info="")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s fell off the map" % (self.name(), player)
         elif (timestamp - self.past_timestamp) > 8.0:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
-                              event_subtype=self.name(),
-                              timestamp=np.floor(timestamp),
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info="Player fell off the map")
+                            event_subtype=self.name(),
+                            timestamp=np.floor(timestamp),
+                            player=player,
+                            lap=self.variables['lap'],
+                            place=self.variables['place'],
+                            info="")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s fell off the map" % (self.name(), player)
     def constrain_roi(self, frame):
@@ -462,23 +462,23 @@ class Reverse(Detector):
         if not self.past_timestamp:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
-                              event_subtype=self.name(),
-                              timestamp=np.floor(timestamp),
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info="Player fell off the map")
+                            event_subtype=self.name(),
+                            timestamp=np.floor(timestamp),
+                            player=player,
+                            lap=self.variables['lap'],
+                            place=self.variables['place'],
+                            info="ReverseStart")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
         elif (timestamp - self.past_timestamp) > 8.0:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
-                              event_subtype=self.name(),
-                              timestamp=np.floor(timestamp),
-                              player=player,
-                              lap=self.variables['lap'],
-                              place=self.variables['place'],
-                              info="Player fell off the map")
+                            event_subtype=self.name(),
+                            timestamp=np.floor(timestamp),
+                            player=player,
+                            lap=self.variables['lap'],
+                            place=self.variables['place'],
+                            info="ReverseStart")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
 
@@ -498,13 +498,13 @@ class BeginRace(Detector):
         self.variables['is_started'] = True
         self.deactivate()
         timestamp = cur_count / self.variables['frame_rate']
-        self.create_event(event_type='Laps',
-                          event_subtype=self.name(),
-                          timestamp=np.floor(timestamp),
-                          player=player,
-                          lap=self.variables['lap'],
-                          place=0,
-                          info="Race has begun")
+        self.create_event(event_type='Lap',
+                        event_subtype=self.name(),
+                        timestamp=np.floor(timestamp),
+                        player=player,
+                        lap=self.variables['lap'],
+                        place=0,
+                        info=self.name())
         if DEBUG_LEVEL > 0:
             print '[%s]: Race started at %d seconds' % (self.name(), timestamp)
 
