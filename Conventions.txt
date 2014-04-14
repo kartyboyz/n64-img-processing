@@ -6,19 +6,7 @@ Naming conventions for Events:
 		* subtype: "Get"
 		* type: "Item"
 
-	PositionChange
-		* info: str(newPlace)
-
-	Lap
-		* info: str(newLap)
-		* subtype: "Few" 
-
 	Finish
 		* info: str(place finished in) 
 		* subtype: "Finish"
-
-	Shortcut
-		* type: "Shortcut"
-		* subtype: "Shortcut"
-		* info: str(Which Shortcut?)
 

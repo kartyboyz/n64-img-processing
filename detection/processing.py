@@ -54,27 +54,26 @@ class Shortcut(Detector):
         if not self.past_timestamp:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
-                            event_subtype=self.name(),
-                            timestamp=np.floor(timestamp),
-                            player=player,
-                            lap=self.variables['lap'],
-                            place=self.variables['place'],
-                            info="KoopaTroopaBeachCave")
+                              event_subtype=self.name(),
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
         # Does it meet the specifications for debouncing?
         elif (timestamp - self.past_timestamp) > 10.0:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
-                            event_subtype=self.name(),
-                            timestamp=np.floor(timestamp),
-                            player=player,
-                            lap=self.variables['lap'],
-                            place=self.variables['place'],
-                            info="KoopaTroopaBeachCave")
+                              event_subtype=self.name(),
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
-
 
 
 class FinishRace(Detector):
@@ -214,12 +213,12 @@ class PositionChange(Detector):
             # Update place state variable and create an event
             self.variables['place'] = int(mask[1][0])
             self.create_event(event_type=self.name(),
-                            event_subtype='Initial',
-                            timestamp=np.floor(timestamp),
-                            player=player,
-                            lap=self.variables['lap'],
-                            place=self.variables['place'],
-                            info=mask[1][0])
+                              event_subtype='Initial',
+                              timestamp=np.floor(timestamp),
+                              player=player,
+                              lap=self.variables['lap'],
+                              place=self.variables['place'],
+                              info=mask[1][0])
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1])
         # Check if the found mask is different than the previous one
@@ -261,12 +260,12 @@ class Lap(Detector):
                 # Increment the lap state variable and create an event
                 self.variables['lap'] += 1
                 self.create_event(event_type='Lap',
-                                event_subtype='Few',
-                                timestamp=np.floor(timestamp),
-                                player=player,
-                                lap=self.variables['lap'],
-                                place=self.variables['place'],
-                                info=str(self.variables['lap']))
+                                  event_subtype='New',
+                                  timestamp=np.floor(timestamp),
+                                  player=player,
+                                  lap=self.variables['lap'],
+                                  place=self.variables['place'],
+                                  info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
             # Fastest lap ever is 2.39 seconds on Wario Stadium (SC)
@@ -275,12 +274,12 @@ class Lap(Detector):
                 # Increment the lap state variable and create an event
                 self.variables['lap'] += 1
                 self.create_event(event_type='Lap',
-                                event_subtype='Few',
-                                timestamp=np.floor(timestamp),
-                                player=player,
-                                lap=self.variables['lap'],
-                                place=self.variables['place'],
-                                info=str(self.variables['lap']))
+                                  event_subtype='New',
+                                  timestamp=np.floor(timestamp),
+                                  player=player,
+                                  lap=self.variables['lap'],
+                                  place=self.variables['place'],
+                                  info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
         # Deactivate on lap 3 detection

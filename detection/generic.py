@@ -218,6 +218,7 @@ class Engine():
                         frame_count += 1
                         key = cv.waitKey(self.toggle)
                         if key is 27:
+                            raise StopIteration
                             return
                         elif key is 32:
                             self.toggle ^= 1
