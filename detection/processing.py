@@ -322,8 +322,8 @@ class Items(Detector):
             # Check blank_count. If 0, create event. This implies received an item
             if not self.blank_count:
                 # Create an event
-                self.create_event(event_type=self.name(),
-                                event_subtype='ItemGet',
+                self.create_event(event_type='Item',
+                                event_subtype='Get',
                                 timestamp=np.floor(timestamp),
                                 player=player,
                                 lap=self.variables['lap'],
@@ -342,8 +342,8 @@ class Items(Detector):
                     if self.item_hist[len(self.item_hist) - 1] == 'Boo.png':
                         # Must check if the stolen item was a triple boost
                         if 'TripleMushroom.png' in self.item_hist and 'SingleMushroom.png' in self.item_hist:
-                            self.create_event(event_type=self.name(),
-                                        event_subtype='ItemStolen',
+                            self.create_event(event_type='Item',
+                                        event_subtype='Stolen',
                                         timestamp=np.floor(timestamp),
                                         player=player,
                                         lap=self.variables['lap'],
@@ -358,8 +358,8 @@ class Items(Detector):
                             if DEBUG_LEVEL > 0:
                                 print "[%s]: Player %d was robbed of a %s" % \
                                     (self.name(), player, self.item_hist[len(self.item_hist) - 2])
-                            self.create_event(event_type=self.name(),
-                                            event_subtype='ItemStolen',
+                            self.create_event(event_type='Item',
+                                            event_subtype='Stolen',
                                             timestamp=np.floor(timestamp),
                                             player=player,
                                             lap=self.variables['lap'],
@@ -371,8 +371,8 @@ class Items(Detector):
                     # If boo is the first item in item_hist, an item was stolen
                     elif self.item_hist[0] == 'Boo.png':
                         if 'TripleMushroom.png' in self.item_hist and 'SingleMushroom.png' in self.item_hist:
-                            self.create_event(event_type=self.name(),
-                                            event_subtype='ItemGet',
+                            self.create_event(event_type='Item',
+                                            event_subtype='Get',
                                             timestamp=np.floor(timestamp),
                                             player=player,
                                             lap=self.variables['lap'],
@@ -391,8 +391,8 @@ class Items(Detector):
                     # We've received a blank box, that meets timeouts criteria
                     # The last item was not a boo or a boost_3. Therefore, it must be an event
                 else:
-                    self.create_event(event_type=self.name(),
-                                    event_subtype='ItemGet',
+                    self.create_event(event_type='Item',
+                                    event_subtype='Get',
                                     timestamp=np.floor(timestamp),
                                     player=player,
                                     lap=self.variables['lap'],
