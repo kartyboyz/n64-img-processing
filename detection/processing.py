@@ -62,8 +62,6 @@ class Shortcut(Detector):
                               event_info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
-            if DEBUG_LEVEL > 2:
-                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Shortcut.png", frame)
         # Does it meet the specifications for debouncing?
         elif (timestamp - self.past_timestamp) > 10.0:
             self.past_timestamp = timestamp
@@ -76,8 +74,6 @@ class Shortcut(Detector):
                               event_info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
-            if DEBUG_LEVEL > 2:
-                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Shortcut.png", frame)
 
 
 class FinishRace(Detector):
@@ -154,8 +150,6 @@ class FinishRace(Detector):
                         event_info='4')
         if DEBUG_LEVEL > 0:
             print "[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1][0])
-        if DEBUG_LEVEL > 2:
-            cv.imwrite("./testing/log_images/" + str(cur_count) + "_Finish.png", frame)
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. FinishRace. Overrides superclass method."""
@@ -234,8 +228,6 @@ class PositionChange(Detector):
                               event_info=mask[1][0])
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1])
-            if DEBUG_LEVEL > 2:
-                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Position.png", frame)
         # Check if the found mask is different than the previous one
         elif mask[1][0] != self.buffer[len(self.buffer) - 2]:
             # Update place state variable and create an event
@@ -254,8 +246,6 @@ class PositionChange(Detector):
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
                     self.buffer[len(self.buffer) - 2], self.buffer[len(self.buffer) - 1])
-            if DEBUG_LEVEL > 2:
-                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Position.png", frame)
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. PositionChange. Overrides superclass method."""
@@ -285,8 +275,7 @@ class Lap(Detector):
                                   event_info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
-                if DEBUG_LEVEL > 2:
-                    cv.imwrite("./testing/log_images/" + str(cur_count) + "_Lap.png", frame)
+   
             # Fastest lap ever is 2.39 seconds on Wario Stadium (SC)
             elif (timestamp - self.past_timestamp) > 2.38:
                 self.past_timestamp = timestamp
@@ -301,8 +290,7 @@ class Lap(Detector):
                                 event_info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
-                if DEBUG_LEVEL > 2:
-                    cv.imwrite("./testing/log_images/" + str(cur_count) + "_Lap.png", frame)
+   
         # Deactivate on lap 3 detection
         if self.variables['lap'] >= 3:
             self.deactivate()
@@ -345,10 +333,9 @@ class Items(Detector):
                 self.item_hist.append(cur_item)
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %d has a %s" % (self.name(), player, cur_item.split('.')[0])
-                if DEBUG_LEVEL > 2:
-                    cv.imwrite("./testing/log_images/" + str(cur_count) + "_Items.png", frame)
+   
             # Already saw a blank_box. Been long enough since last blank_box
-            elif self.blank_count and (timestamp - self.past_timestamp) > 0.45:
+            elif self.blank_count and (timestamp - self.past_timestamp) > 0.6:
                 # item_hist length > 1
                 if len(self.item_hist) > 1:
                     # If boo is last item in item_hist, item was stolen
@@ -366,8 +353,7 @@ class Items(Detector):
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 0:
                                 print "[%s]: Player %d was robbed of a triple mushroom" % (self.name(), player)
-                            if DEBUG_LEVEL > 2:
-                                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Items.png", frame)
+               
                         else:
                             if DEBUG_LEVEL > 0:
                                 print "[%s]: Player %d was robbed of a %s" % \
@@ -381,8 +367,7 @@ class Items(Detector):
                                             event_info=self.item_hist[len(self.item_hist) - 2].split('.')[0])
                             self.blank_count ^= 1
                             self.item_hist.clear()
-                            if DEBUG_LEVEL > 2:
-                                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Items.png", frame)
+               
                     # If boo is the first item in item_hist, an item was stolen
                     elif self.item_hist[0] == 'Boo.png':
                         if 'TripleMushroom.png' in self.item_hist and 'SingleMushroom.png' in self.item_hist:
@@ -397,8 +382,7 @@ class Items(Detector):
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 0:
                                 print "[%s]: Player %d received a triple mushroom" % (self.name(), player)
-                            if DEBUG_LEVEL > 2:
-                                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Items.png", frame)
+               
                     # Must check if we got a triple boost
                     elif self.item_hist[len(self.item_hist) - 1] == 'SingleMushroom.png' and \
                         self.item_hist[len(self.item_hist) - 2] == 'TripleMushroom.png':
@@ -413,13 +397,12 @@ class Items(Detector):
                                     player=player,
                                     lap=self.variables['lap'],
                                     place=self.variables['place'],
-                                    event_info=self.item_hist[len(self.item_hist) - 1])
+                                    event_info=self.item_hist[len(self.item_hist) - 1].split('.')[0])
                     self.blank_count ^= 1
                     if DEBUG_LEVEL > 0:
                         print "[%s] Player %d received a %s" % \
-                            (self.name(), player, self.item_hist[len(self.item_hist) - 1])
-                    if DEBUG_LEVEL > 2:
-                        cv.imwrite("./testing/log_images/" + str(cur_count) + "_Items.png", frame)
+                            (self.name(), player, self.item_hist[len(self.item_hist) - 1].split('.')[0])
+       
             self.past_timestamp = timestamp # update the past timestamp to reflect the blank_box detection
             self.buffer.clear()
         
@@ -463,8 +446,6 @@ class Fall(Detector):
                             event_info="")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s fell off the map" % (self.name(), player)
-            if DEBUG_LEVEL > 2:
-                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Fall.png", frame)
         elif (timestamp - self.past_timestamp) > 8.0:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
@@ -476,8 +457,6 @@ class Fall(Detector):
                             event_info="")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s fell off the map" % (self.name(), player)
-            if DEBUG_LEVEL > 2:
-                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Fall.png", frame)
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. Fall. Overrides superclass method."""
@@ -503,8 +482,6 @@ class Reverse(Detector):
                             event_info="ReverseStart")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
-            if DEBUG_LEVEL > 2:
-                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Reverse.png", frame)
         elif (timestamp - self.past_timestamp) > 8.0:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
@@ -516,8 +493,6 @@ class Reverse(Detector):
                             event_info="ReverseStart")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
-            if DEBUG_LEVEL > 2:
-                cv.imwrite("./testing/log_images/" + str(cur_count) + "_Reverse.png", frame)
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. Reverse. Overrides superclass method."""
@@ -551,8 +526,6 @@ class BeginRace(Detector):
                         event_info="1")
         if DEBUG_LEVEL > 0:
             print '[%s]: Race started at %d seconds' % (self.name(), timestamp)
-        if DEBUG_LEVEL > 2:
-            cv.imwrite("./testing/log_images/" + str(cur_count) + "_BeginRace.png", frame)
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. BeginRace/StartRace. Overrides superclass method."""
