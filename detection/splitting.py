@@ -334,11 +334,5 @@ class EndRace(Detector):
         # Store as event for splitting
         self.create_event(start_time=self.variables['start_time'],
                           duration=self.variables['duration'])
-        if DEBUG_LEVEL == 0:
-            try:
-                database.put_race(self.variables)
-            except: #TODO Figure out exact exceptions
-                # UH OH!
-                pass
-        else:
+        if DEBUG_LEVEL > 0:
             print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.variables['duration'])
