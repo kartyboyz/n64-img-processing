@@ -59,7 +59,7 @@ class Shortcut(Detector):
                               player=player,
                               lap=self.variables['lap'],
                               place=self.variables['place'],
-                              info="KoopaTroopaBeachCave")
+                              event_info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
             if DEBUG_LEVEL > 2:
@@ -73,7 +73,7 @@ class Shortcut(Detector):
                               player=player,
                               lap=self.variables['lap'],
                               place=self.variables['place'],
-                              info="KoopaTroopaBeachCave")
+                              event_info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
             if DEBUG_LEVEL > 2:
@@ -144,7 +144,14 @@ class FinishRace(Detector):
                         player=player,
                         lap=self.variables['lap'],
                         place=self.variables['place'],
-                        info=mask[1][0])
+                        event_info=mask[1][0])
+        self.create_event(event_type='Lap',
+                        event_subtype="New",
+                        timestamp=np.floor(timestamp),
+                        player=player,
+                        lap=self.variables['lap'],
+                        place=self.variables['place'],
+                        event_info='4')
         if DEBUG_LEVEL > 0:
             print "[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1][0])
         if DEBUG_LEVEL > 2:
@@ -218,13 +225,13 @@ class PositionChange(Detector):
         if len(self.buffer) == 1:
             # Update place state variable and create an event
             self.variables['place'] = int(mask[1][0])
-            self.create_event(event_type=self.name(),
+            self.create_event(event_type='Pass',
                               event_subtype='Initial',
                               timestamp=np.floor(timestamp),
                               player=player,
                               lap=self.variables['lap'],
                               place=self.variables['place'],
-                              info=mask[1][0])
+                              event_info=mask[1][0])
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1])
             if DEBUG_LEVEL > 2:
@@ -237,13 +244,13 @@ class PositionChange(Detector):
                 subtype = 'Passed'
             else:
                 subtype = 'Passing'
-            self.create_event(event_type=self.name(),
+            self.create_event(event_type='Pass',
                             event_subtype=subtype,
                             timestamp=timestamp,
                             player=player,
                             lap=self.variables['lap'],
                             place=self.variables['place'],
-                            info=mask[1][0])
+                            event_info=mask[1][0])
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
                     self.buffer[len(self.buffer) - 2], self.buffer[len(self.buffer) - 1])
@@ -275,7 +282,7 @@ class Lap(Detector):
                                   player=player,
                                   lap=self.variables['lap'],
                                   place=self.variables['place'],
-                                  info=str(self.variables['lap']))
+                                  event_info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
                 if DEBUG_LEVEL > 2:
@@ -291,7 +298,7 @@ class Lap(Detector):
                                 player=player,
                                 lap=self.variables['lap'],
                                 place=self.variables['place'],
-                                info=str(self.variables['lap']))
+                                event_info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
                     print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
                 if DEBUG_LEVEL > 2:
@@ -333,7 +340,7 @@ class Items(Detector):
                                 player=player,
                                 lap=self.variables['lap'],
                                 place=self.variables['place'],
-                                info=cur_item.split('.')[0])
+                                event_info=cur_item.split('.')[0])
                 self.blank_count ^= 1 # Toggle
                 self.item_hist.append(cur_item)
                 if DEBUG_LEVEL > 0:
@@ -354,7 +361,7 @@ class Items(Detector):
                                         player=player,
                                         lap=self.variables['lap'],
                                         place=self.variables['place'],
-                                        info="TripleMushroom")
+                                        event_info="TripleMushroom")
                             self.blank_count ^= 1
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 0:
@@ -371,7 +378,7 @@ class Items(Detector):
                                             player=player,
                                             lap=self.variables['lap'],
                                             place=self.variables['place'],
-                                            info=self.item_hist[len(self.item_hist) - 2].split('.')[0])
+                                            event_info=self.item_hist[len(self.item_hist) - 2].split('.')[0])
                             self.blank_count ^= 1
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 2:
@@ -385,7 +392,7 @@ class Items(Detector):
                                             player=player,
                                             lap=self.variables['lap'],
                                             place=self.variables['place'],
-                                            info="TripleMushroom")
+                                            event_info="TripleMushroom")
                             self.blank_count ^= 1
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 0:
@@ -406,7 +413,7 @@ class Items(Detector):
                                     player=player,
                                     lap=self.variables['lap'],
                                     place=self.variables['place'],
-                                    info=self.item_hist[len(self.item_hist) - 1])
+                                    event_info=self.item_hist[len(self.item_hist) - 1])
                     self.blank_count ^= 1
                     if DEBUG_LEVEL > 0:
                         print "[%s] Player %d received a %s" % \
@@ -453,7 +460,7 @@ class Fall(Detector):
                             player=player,
                             lap=self.variables['lap'],
                             place=self.variables['place'],
-                            info="")
+                            event_info="")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s fell off the map" % (self.name(), player)
             if DEBUG_LEVEL > 2:
@@ -466,7 +473,7 @@ class Fall(Detector):
                             player=player,
                             lap=self.variables['lap'],
                             place=self.variables['place'],
-                            info="")
+                            event_info="")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s fell off the map" % (self.name(), player)
             if DEBUG_LEVEL > 2:
@@ -493,7 +500,7 @@ class Reverse(Detector):
                             player=player,
                             lap=self.variables['lap'],
                             place=self.variables['place'],
-                            info="ReverseStart")
+                            event_info="ReverseStart")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
             if DEBUG_LEVEL > 2:
@@ -506,7 +513,7 @@ class Reverse(Detector):
                             player=player,
                             lap=self.variables['lap'],
                             place=self.variables['place'],
-                            info="ReverseStart")
+                            event_info="ReverseStart")
             if DEBUG_LEVEL > 0:
                 print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
             if DEBUG_LEVEL > 2:
@@ -534,7 +541,14 @@ class BeginRace(Detector):
                         player=player,
                         lap=self.variables['lap'],
                         place=0,
-                        info=self.name())
+                        event_info="0")
+        self.create_event(event_type='Lap',
+                        event_subtype='New',
+                        timestamp=np.floor(timestamp),
+                        player=player,
+                        lap=self.variables['lap'],
+                        place=0,
+                        event_info="1")
         if DEBUG_LEVEL > 0:
             print '[%s]: Race started at %d seconds' % (self.name(), timestamp)
         if DEBUG_LEVEL > 2:

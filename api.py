@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """API around S3, SQS, and MK64 database"""
 import boto
 import json
@@ -107,6 +106,7 @@ class DB(object):
             return None
 
     def post_events(self, race_id, events):
+        responses = []
         url = '%s:%d/races/%s/events' % (self.database, self.port, race_id)
         for e in events:
             payload = json.dumps(e)
@@ -115,10 +115,11 @@ class DB(object):
             res = requests.post(url, data=payload, headers=header)
             print res
             if res.ok:
-                return res.json()['id']
+                responses.append(res.json()['id'])
             else:
                 print res.json()['message']
-                return None
+                responses.append(None)
+        return responses
 
     def post_race(self, session_id, payload):
         """Sends race JSON object to database for storage"""

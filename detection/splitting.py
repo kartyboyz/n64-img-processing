@@ -5,6 +5,7 @@ Modularized detection suite containing the phase_0 classes.
 """
 
 # Standard library
+import copy
 import itertools
 
 # External dependencies
@@ -12,7 +13,6 @@ import numpy as np
 import cv2 as cv
 
 # Project-specific
-#import database
 import utility
 from generic import Detector
 
@@ -55,7 +55,7 @@ class BoxExtractor(Detector):
                               (int(str(coord[1][0]), 10), int(str(coord[1][1]), 10))])
             self.variables['player_regions'] = self.sort_boxes(local, cur_frame)
             if not self.set and self.variables['is_started']:
-                self.variables['locked_regions'] = self.variables['player_regions']
+                self.variables['locked_regions'] = copy.deepcopy(self.variables['player_regions'][0:self.variables['num_players']])
                 self.set = True
         else:
             # Completely black frame
@@ -289,7 +289,6 @@ class StartRace(Detector):
         self.deactivate()
         self.activate('EndRace')
         self.deactivate('Characters')
-        self.deactivate('BoxExtractor')
         self.deactivate('Map')
         # Lock in player boxes (should be sorted alreadY)
         self.variables['player_regions'] = self.variables['player_regions'][0:self.variables['num_players']]
@@ -343,4 +342,3 @@ class EndRace(Detector):
                 pass
         else:
             print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.variables['duration'])
-
