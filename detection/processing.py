@@ -63,7 +63,7 @@ class Shortcut(Detector):
             if DEBUG_LEVEL > 0:
                 print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
         # Does it meet the specifications for debouncing?
-        elif (timestamp - self.past_timestamp) > 10.0:
+        elif (timestamp - self.past_timestamp) > 17.0:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
                               event_subtype=self.name(),

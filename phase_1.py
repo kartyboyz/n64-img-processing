@@ -123,13 +123,14 @@ if __name__ == '__main__':
         exit(-1)
     instructions()
     rv = debug_main(int(sys.argv[1]), open(sys.argv[2]))
-    for ii in xrange(len(rv)):
-        if len(rv[ii]['events']) != 0 and rv[ii]['events'][-1]['event_info'] == "KoopaTroopaBeachCave":
-            temp = rv[ii]['events']
-            temp.pop()
-            rv[ii]['events'] = temp
-        for event in rv[ii]['events']:
-            print event
+    if rv != None:
+        for ii in xrange(len(rv)):
+            if len(rv[ii]['events']) != 0 and rv[ii]['events'][-1]['event_info'] == "KoopaTroopaBeachCave":
+                temp = rv[ii]['events']
+                temp.pop()
+                rv[ii]['events'] = temp
+            for event in rv[ii]['events']:
+                print event
     if DEBUG_LEVEL > 1:
         with open("./testing/events.log", "a") as event_log:
             for event in rv[0]['events']:
