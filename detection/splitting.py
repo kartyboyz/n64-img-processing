@@ -296,7 +296,7 @@ class StartRace(Detector):
         self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 2
         if DEBUG_LEVEL > 0:
             print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
-            cv.waitKey(1)
+            
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. StartRace/BeginRace. Overrides superclass method."""
         h, w, _ = frame.shape
