@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 """
 Phase 1 of MK64 Detection Suite.
 Processing phase of detection on each race.

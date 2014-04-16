@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 """Job dispatcher for MK64 analytics engine"""
 import json
 import multiprocessing
