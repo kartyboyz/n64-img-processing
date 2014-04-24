@@ -229,11 +229,14 @@ class Engine():
                 self.manager.detect()
                 self.barrier.wait()
                 self.cleanup()
-                for rv in self.variables:
-                    for event in rv['events']:
-                        if event['event_subtype'] == "Finish":
-                            return self.variables
-                return None
+                try:
+                    for rv in self.variables:
+                        for event in rv['events']:
+                            if event['event_subtype'] == "Finish":
+                                return self.variables
+                    return None
+                except:
+                    return rv
             except:
                 # Any other exception is bad!
                 return None
