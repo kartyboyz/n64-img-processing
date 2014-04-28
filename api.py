@@ -16,8 +16,7 @@ from const import *
 
 class SQS(object):
     def __init__(self, queue_names):
-        self.conn = boto.connect_sqs(AWS_ACCESS_KEY_ID,
-                                     AWS_SECRET_ACCESS_KEY)
+        self.conn = boto.connect_sqs()
         self.queues = {q : self.conn.get_queue(q) for q in queue_names}
 
     def delete_message(self, msg):
@@ -51,8 +50,7 @@ class SQS(object):
 
 class S3(object):
     def __init__(self, bucket_names):
-        self.conn = boto.connect_s3(AWS_ACCESS_KEY_ID,
-                                    AWS_SECRET_ACCESS_KEY)
+        self.conn = boto.connect_s3()
         self.buckets = {b : self.conn.get_bucket(b) for b in bucket_names}
 
     def upload(self, bucket, file_path):
