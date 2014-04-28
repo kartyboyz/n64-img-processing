@@ -1,8 +1,9 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """Job dispatcher for MK64 analytics engine"""
+import argparse
 import json
 import multiprocessing
-import os
+import os, sys, pwd, grp, signal, syslog
 import time
 from subprocess import call
 
@@ -12,10 +13,22 @@ import phase_1
 
 from const import *
 
+DAEMON = False
+
+
+sqs = api.SQS(QUEUES)
+s3 = api.S3(BUCKETS)
+db = api.DB()
+rv_queue = multiprocessing.Queue()
+
+def log(message, level=syslog.LOG_INFO):
+    if DAEMON:
+        syslog.syslog(level, message)
+    else:
+        print message
+
 def split_session(session_id, url, rv_queue, job_data):
-    print 'Splitting session'
     video_file = s3.download_url('session', url, session_id)
-    print video_file
     if video_file is not None:
         # Process
         rv = phase_0.main(int(session_id), open(video_file))
@@ -31,13 +44,11 @@ def split_session(session_id, url, rv_queue, job_data):
 
 def process_race(race_id, url, rv_queue, job_data):
     video_file = s3.download_url('race', url, race_id)
-    print video_file
     if video_file is not None:
         # Get player regions
         rv = phase_1.main(job_data['player_regions'], open(video_file))
         # Send events to database
         for race_vars in rv:
-            print race_vars['events']
             db.post_events(race_id, race_vars['events'])
         # Cleanup
         rv_queue.put(1)
@@ -48,7 +59,7 @@ def process_audio(race_id, url, rv_queue):
     pass
 
 def split_video(src, dst, start, duration):
-    print "Splitting %s into %s" % (src, dst)
+    log("Splitting %s into %s" % (src, dst))
     command = ['ffmpeg', '-i', src, '-y',
               '-vcodec', 'copy', '-acodec', 'copy',
               '-ss', str(start), '-t', str(duration), dst ]
@@ -71,17 +82,7 @@ def cleanup():
     for worker in JOBS:
         worker.join()
 
-
-
-JOBS = list()
-JOB_MAP = {
-            'split-queue' : globals()['split_session'],
-            'process-queue' : globals()['process_race'],
-            'audio-queue' : globals()['process_audio']
-          }
-
 def parse_events(event_type, video_file, rv):
-    print 'parsing events'
     if event_type is 'session':
         for idx, race in enumerate(rv[0]['events']):
             ext = video_file.split('.')[-1]
@@ -122,24 +123,47 @@ def parse_events(event_type, video_file, rv):
         pass
 
 
-if __name__ == '__main__':
-    sqs = api.SQS(QUEUES)
-    s3 = api.S3(BUCKETS)
-    db = api.DB()
-    rv_queue = multiprocessing.Queue()
+def daemonize():
+    if os.fork() == 0:
+        # Child
+        os.setsid()
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        pid = os.fork()
+        if pid != 0:
+            os._exit(0)
+        else:
+            return
+    else:
+        os._exit(0)
 
-    # Listen & dispatch jobs
-    while True:
-        try:
+def drop_privileges(username='nobody'):
+    if os.getuid() != 0:
+        return
+    uid = pwd.getpwnam(username).pw_uid
+    gid = pwd.getpwnam(username).pw_gid
+    os.setgroups([])
+    os.setgid(gid)
+    os.setuid(uid)
+    os.umask(077)
+
+JOBS = list()
+JOB_MAP = {
+            'split-queue' : globals()['split_session'],
+            'process-queue' : globals()['process_race'],
+            'audio-queue' : globals()['process_audio']
+          }
+
+
+def dispatch_jobs():
+    try:
+        while True:
             for q in QUEUES:
-                print q
                 # Check for phase0 jobs
                 job = sqs.listen(q)
-                print job
+                log('Listening on '+q)
                 if job is not None:
-                    print 'Launching worker'
+                    log('Launching worker')
                     job_data = json.loads(job['msg'].get_body())
-                    print job_data
                     worker = multiprocessing.Process(target=JOB_MAP[q],
                                                      args=(job['id'], job['url'], rv_queue, job_data))
                     worker.start()
@@ -148,9 +172,24 @@ if __name__ == '__main__':
                     worker.join()
                     rv = rv_queue.get()
                     if rv is not None:
-                        print "Successfully completed job. Deleting from queue..."
+                        log("Successfully completed job. Deleting from queue...")
                         sqs.delete_message(job['msg'])
             time.sleep(WAIT)
-        except KeyboardInterrupt:
-            cleanup()
-            exit()
+    except Exception as ex:
+        print ex
+        cleanup()
+
+def main():
+    parser = argparse.ArgumentParser(description='Listens on SQS queues and dispatches jobs')
+    parser.add_argument('-d', '--daemon', help="Runs the dispatcher as a daemon", action="store_true")
+    parser.add_argument('--user', help="Specifies which user to drop daemon privileges to (Requires --daemon)", default='nobody')
+    args = parser.parse_args()
+    global DAEMON
+    DAEMON = args.daemon
+    if DAEMON:
+        daemonize()
+        drop_privileges(username=args.user)
+    dispatch_jobs()
+
+if __name__ == '__main__':
+    main()
