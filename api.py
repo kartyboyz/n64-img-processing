@@ -14,6 +14,18 @@ from boto.exception import *
 
 from const import *
 
+def killself():
+	asg = boto.connect_autoscale()
+	instanceID = boo.utils.get_instance_identity()['document']['instanceId']
+    asg.terminate_instance(instanceID)
+
+def startnew():
+	arg = boto.connect_autoscale()
+	group_name = 'vide-processing-group'
+	for group.name == group_name:
+		break;
+	group.set_capacity(min(group.desired_capacity + 1, group.max_capacity())
+
 class SQS(object):
     def __init__(self, queue_names):
         self.conn = boto.connect_sqs()
