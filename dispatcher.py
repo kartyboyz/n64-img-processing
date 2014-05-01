@@ -78,7 +78,7 @@ def split_video(src, dst, start, duration):
 def split_audio(src, dst, start, duration):
     wav_name = dst.split('.')[0] + '.wav'
     command = ['ffmpeg', '-i', src, '-y',
-                '-vn', '-ac', '2', '-ar', '44100', '-f', 'wav',
+                '-vn', '-ac', '2', '-ar', '16000', '-f', 'wav',
                 '-ss', str(start), '-t', str(duration), wav_name]
     ret = call(command)
     if ret != 0:
@@ -188,7 +188,7 @@ def dispatch_jobs():
             if count >= KILL_COUNT:
                 api.EC2.killself()
     except Exception as ex:
-        print ex
+        log('Exiting due to: \n' +ex)
         cleanup()
 
 def main():

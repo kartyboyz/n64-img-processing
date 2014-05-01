@@ -15,6 +15,12 @@ import boto.utils
 
 from const import *
 
+def log(message, level=syslog.LOG_INFO):
+    if DAEMON:
+        syslog.syslog(level, message)
+    else:
+        print message
+
 class EC2(object):
     def killself(self):
         asg = boto.connect_autoscale()
@@ -38,14 +44,13 @@ class SQS(object):
         try:
             q = self.queues[queue_name]
             raw_msg = q.get_messages(wait_time_seconds=WAIT)[0]
-            print raw_msg.get_body()
             msg = json.loads(raw_msg.get_body())
             url = str(msg['video_url'])
             video_id = str(msg['id'])
             rv = {'msg':raw_msg,'id':video_id,'url':url}
             return rv
         except UnicodeDecodeError:
-            print "JSON Dumps failed"
+            log("JSON Dumps failed")
             filename = None
         except:
             # No messages
@@ -57,7 +62,7 @@ class SQS(object):
             msg.set_body(payload)
             return self.queues[queue_name].write(msg)
         except SQSError:
-            print "Could not write to queue %s" % (queue_name)
+            log( "Could not write to queue %s" % (queue_name))
             return None
 
 class S3(object):
@@ -84,18 +89,12 @@ class S3(object):
             raise ValueError("Invalid video type")
         try:
             key_name = url.split('.com/')[-1]
-            print key_name
             bucket = self.buckets[name]
-            print bucket
             key = bucket.get_key(key_name)
-            print key
             ext = url.split('.')[-1]
-            print ext
             filename = '%s%s.%s' % (name, data_id, ext)
-            print filename
             key.get_contents_to_filename(filename)
         except:
-            print "Please specify either 'race-*' or 'session-*' as the type"
             filename = None
         finally:
             return filename
@@ -108,11 +107,10 @@ class DB(object):
     def get_regions(self, race_id):
         url = '%s:%d/races/%d' % (self.database, self.port, race_id)
         res = requests.get(url)
-        print res
         if res.ok:
             return res.json()['player_regions']
         else:
-            print res.json()['message']
+            log('DB Error: ' + res.json()['message'])
             return None
 
     def post_events(self, race_id, events):
@@ -120,14 +118,11 @@ class DB(object):
         url = '%s:%d/races/%s/events' % (self.database, self.port, race_id)
         for e in events:
             payload = json.dumps(e)
-            print payload
             header = {'Content-Type': 'application/json'}
             res = requests.post(url, data=payload, headers=header)
-            print res
             if res.ok:
                 responses.append(res.json()['id'])
             else:
-                print res.json()['message']
                 responses.append(None)
         return responses
 
@@ -140,5 +135,4 @@ class DB(object):
         if res.ok:
             return res.json()['id']
         else:
-            print res.json()['message']
             return None
