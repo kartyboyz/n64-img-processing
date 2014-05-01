@@ -14,8 +14,6 @@ class AudioAPI(object):
         self.events = []
 
     def create_event(self, **kwargs):
-        print "Appending an event!"
-        print kwargs
         self.events.append(kwargs)
 
     def cutmeopen_mom(self,sig,fs,winsize):
@@ -51,7 +49,7 @@ class AudioAPI(object):
                 self.write_tempwav('tempo_'+str(i)+'.wav',fs,sig[st:fin])
                 self.convert2flac(('tempo_'+str(i)+'.wav'))
         responses = []
-        print "Beginning Google querying"
+        #TODO Add lists of acceptable words
         for i in range(0,len(buff_beg)):
             if (buff_end[i]-buff_beg[i]):
                 responses.append(self.detect('temp/tempo_'+str(i)+'.flac'))
@@ -94,7 +92,7 @@ class AudioAPI(object):
             shutil.rmtree(path)
         os.mkdir(path)
 
-    def check_respon:wqses(self,responses, buff_beg):
+    def check_responses(self,responses, buff_beg):
         tags = []
         watches = []
         fs = []
