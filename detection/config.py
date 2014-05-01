@@ -10,7 +10,7 @@ DEBUG_LEVEL: Describes intensity of feedback from video processing.
              Josh Navon     navonj@bu.edu
 """
 import multiprocessing
-DEBUG_LEVEL = 2
+DEBUG_LEVEL = 1
 
 race = multiprocessing.Manager().dict({
         'session_id' : 0,
