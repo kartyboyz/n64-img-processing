@@ -8,6 +8,7 @@ import time
 from subprocess import call
 
 import api
+import audiodetect as aud
 import phase_0
 import phase_1
 
@@ -56,7 +57,13 @@ def process_race(race_id, url, rv_queue, job_data):
         rv_queue.put(None)
 
 def process_audio(race_id, url, rv_queue):
-    pass
+    audio_file = s3.download_url('audio', url, race_id)
+    if audio_file is not None:
+        rv = aud.detect(audio)
+        db.post_events(rv)
+        rv_queue.put(1)
+    else:
+        rv_queue.put(None)
 
 def split_video(src, dst, start, duration):
     log("Splitting %s into %s" % (src, dst))
