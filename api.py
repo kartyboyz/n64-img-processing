@@ -11,20 +11,20 @@ from subprocess import call
 from boto.sqs.message import Message
 from boto.sqs.message import RawMessage
 from boto.exception import *
+import boto.utils
 
 from const import *
 
-def killself():
-	asg = boto.connect_autoscale()
-	instanceID = boo.utils.get_instance_identity()['document']['instanceId']
-    asg.terminate_instance(instanceID)
+class EC2(object):
+    def killself(self):
+        asg = boto.connect_autoscale()
+        instanceID = boto.utils.get_instance_identity()['document']['instanceId']
+        asg.terminate_instance(instanceID)
 
-def startnew():
-	arg = boto.connect_autoscale()
-	group_name = 'vide-processing-group'
-	for group.name == group_name:
-		break;
-	group.set_capacity(min(group.desired_capacity + 1, group.max_capacity())
+    def get_launch_time(self):
+        #TODO This.
+        pass
+
 
 class SQS(object):
     def __init__(self, queue_names):

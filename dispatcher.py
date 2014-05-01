@@ -15,7 +15,7 @@ import phase_1
 from const import *
 
 DAEMON = False
-
+KILL_COUNT = 360
 
 sqs = api.SQS(QUEUES)
 s3 = api.S3(BUCKETS)
@@ -162,6 +162,7 @@ JOB_MAP = {
 
 
 def dispatch_jobs():
+    count = 0
     try:
         while True:
             for q in QUEUES:
@@ -169,6 +170,7 @@ def dispatch_jobs():
                 job = sqs.listen(q)
                 log('Listening on '+q)
                 if job is not None:
+                    count = 0
                     log('Launching worker')
                     job_data = json.loads(job['msg'].get_body())
                     worker = multiprocessing.Process(target=JOB_MAP[q],
@@ -182,6 +184,9 @@ def dispatch_jobs():
                         log("Successfully completed job. Deleting from queue...")
                         sqs.delete_message(job['msg'])
             time.sleep(WAIT)
+            count += 1
+            if count >= KILL_COUNT:
+                api.EC2.killself()
     except Exception as ex:
         print ex
         cleanup()
