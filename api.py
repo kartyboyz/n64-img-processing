@@ -6,6 +6,7 @@ import os
 import requests
 import time
 import uuid
+import syslog
 
 from subprocess import call
 from boto.sqs.message import Message

@@ -20,7 +20,6 @@ KILL_COUNT = 360
 sqs = api.SQS(QUEUES)
 s3 = api.S3(BUCKETS)
 db = api.DB()
-rv_queue = multiprocessing.Queue()
 
 def log(message, level=syslog.LOG_INFO):
     if DAEMON:
@@ -163,6 +162,7 @@ JOB_MAP = {
 
 def dispatch_jobs():
     count = 0
+    rv_queue = multiprocessing.Queue()
     try:
         while True:
             for q in QUEUES:
@@ -201,6 +201,8 @@ def main():
     if DAEMON:
         daemonize()
         drop_privileges(username=args.user)
+        # Ensure we're in correct directory
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
     dispatch_jobs()
 
 if __name__ == '__main__':
