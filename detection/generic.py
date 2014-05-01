@@ -230,13 +230,15 @@ class Engine():
                 self.barrier.wait()
                 self.cleanup()
                 try:
+                    # Handle rangequits in Phase 1
                     for rv in self.variables:
                         for event in rv['events']:
                             if event['event_subtype'] == "Finish":
                                 return self.variables
                     return None
                 except:
-                    return rv
+                    # Phase 0 -- no handling
+                    return self.variables
             except:
                 # Any other exception is bad!
                 return None
