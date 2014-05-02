@@ -51,6 +51,7 @@ def process_race(race_id, url, rv_queue, job_data):
         for race_vars in rv:
             db.post_events(race_id, race_vars['events'])
         # Cleanup
+        os.remove(video_file)
         rv_queue.put(1)
     else:
         rv_queue.put(None)
