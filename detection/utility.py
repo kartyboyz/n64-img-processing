@@ -106,34 +106,6 @@ class Barrier(object):
             return (self._parties - 1) - self._counter.get_value()
 
 
-def pixelate(image, resolution):
-    """
-    Global function to average and downsize an image.
-    Generates a new image with dimesions [resolution]x[resolution],
-    with each cell containing the average color of its corresponding
-    block in the 'image' parameter.
-    """
-    h, w, _ = image.shape
-    block_size = (h/resolution, w/resolution)
-    rv = np.zeros((resolution, resolution, 3), np.uint8)
-    # Debug
-    display = np.zeros((160, 160, 3), np.uint8)
-    block = 160/resolution
-    for r in xrange(resolution):
-        for c in xrange(resolution):
-            # Determine coordinates
-            start_x = block_size[1]*c
-            start_y = block_size[0]*r
-            # Calculate average of current block
-            avg_b, avg_g, avg_r, _ = cv.mean(image[start_y:start_y+block_size[0], start_x:start_x+block_size[1]])
-            # Populate return matrix
-            rv[r][c] = [avg_b, avg_g, avg_r]
-            # Debug
-            cv.rectangle(display, (block*c, block*r), (block*c+block, block*r+block), [avg_b, avg_g, avg_r], -1)
-    return rv, display
-
-
-
 def scaleImage(frame, mask, frame_shape_default):
     """
     Generates a new image mask with dimensions scaled to the size of the video frame.
