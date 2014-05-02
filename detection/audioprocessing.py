@@ -11,7 +11,15 @@ from scipy.signal import butter, lfilter
 
 class AudioAPI(object):
     def __init__(self):
-        self.events = []
+        self.events = list()
+        self.tags = ['jagged', 'tagged', 'lagged', 'f*****', 'tag it', 
+                    'tag', 'target', 'had it', 'bag it','Tegan', 'Sagat'
+                    'Saget', 'Tagetes', 'agate', 'Faget', 'lag it', 'bag', 
+                    'lag', 'sag', 'sag it', 'had', 'Daggett', 'Zagat', 'dagger']
+        self.watches = ["watch this", "wash this", "what's this", "what's",
+                        "watch", "wash"]
+        self.eggf = ['f***']
+        self.eggs =  ['s***']
 
     def create_event(self, **kwargs):
         self.events.append(kwargs)
@@ -28,6 +36,8 @@ class AudioAPI(object):
         return sutt, sbutt, utt, butt
 
     def process(self, sig,fs):
+        words = list()
+        responses = list()
         emph = self.preemphasis(sig)
         filtered = self.butter_bandpass_filter(emph,250,3500,fs,6)
         winsize = int(0.03*fs)
@@ -48,30 +58,37 @@ class AudioAPI(object):
             if len(sig[st:fin] > 44):
                 self.write_tempwav('tempo_'+str(i)+'.wav',fs,sig[st:fin])
                 self.convert2flac(('tempo_'+str(i)+'.wav'))
-        responses = []
-        #TODO Add lists of acceptable words
+        
         for i in range(0,len(buff_beg)):
             if (buff_end[i]-buff_beg[i]):
                 responses.append(self.detect('temp/tempo_'+str(i)+'.flac'))
-        tags, watches, eggs = self.check_responses(responses,buff_beg)
+
+        tags, watches, fck, sht = self.check_responses(responses,buff_beg)
         tags = self.debounce(tags)
         watches = self.debounce(watches)
-        eggs = self.debounce(eggs)
-        for i in tags:
-            time = self.gettime(i,winstep,fs)
-            timestamp =  (floor(time*10))/10
+        fck = self.debounce(fck)
+        sht = self.debounce(sht)
+        for tag in tags:
+            time = self.gettime(tag,winstep,fs)
+            timestamp =  (np.floor(time*10))/10
             self.create_event(event_type="Tag",
                         event_subtype="Tag",
                         timestamp=timestamp)
-        for j in watches:
-            time = self.gettime(j,winstep,fs)
-            timestamp =  (floor(time*10))/10
+        for wat in watches:
+            time = self.gettime(wat,winstep,fs)
+            timestamp =  (np.floor(time*10))/10
             self.create_event(event_type="Tag",
                         event_subtype="Watch",
                         timestamp=timestamp)
-        for k in eggs:
-            time = self.gettime(k,winstep,fs)
-            timestamp =  (floor(time*10))/10
+        for f in fck:
+            time = self.gettime(f,winstep,fs)
+            timestamp =  (np.floor(time*10))/10
+            self.create_event(event_type="Tag",
+                        event_subtype="Egg",
+                        timestamp=timestamp)
+        for sh in sht:
+            time = self.gettime(sh,winstep,fs)
+            timestamp =  (np.floor(time*10))/10
             self.create_event(event_type="Tag",
                         event_subtype="Egg",
                         timestamp=timestamp)
@@ -93,31 +110,31 @@ class AudioAPI(object):
         os.mkdir(path)
 
     def check_responses(self,responses, buff_beg):
-        tags = []
-        watches = []
-        fs = []
-        watch = "watch this"
-        tag = "tag"
-        f = "f***"
-        for i in range(0,len(responses)):
-            if responses[i].text:
+        tag = list()
+        watch = list()
+        fs = list()
+        sh = list()
+        for i in xrange(len(responses)):
+            if responses[i] and responses[i].text:
                 info = eval(responses[i].text)
-                if watch in responses[i].text:
-                    if (info["hypotheses"][0]["confidence"] >= 0.9):
-                        watches.append(buff_beg[i])
-                if tag in responses[i].text:
-                    if (info["hypotheses"][0]["confidence"] >= 0.9):
-                        tags.append(buff_beg[i])
-                if f in responses[i].text:
-                    if (info["hypotheses"][0]["confidence"] >= 0.9):
+                for watches in self.watches:
+                    if watches in responses[i].text:
+                        watch.append(buff_beg[i])
+                for tagit in self.tags:
+                    if tagit in responses[i].text:
+                        tag.append(buff_beg[i])
+                for egf in self.eggf:
+                    if egf in responses[i].text:
                         fs.append(buff_beg[i])
-            return tags, watches, fs
-        return 0
+                for egs in self.eggs:
+                    if egs in responses[i].text:
+                        sh.append(buff_beg[i])
+        return tag, watch, fs, sh
 
     def debounce(self,keyword):
         trash = []
         for i in range(0,len(keyword)-1):
-            if (keyword[i+1]-keyword[i])<=50:
+            if (keyword[i+1]-keyword[i])<=150:
                 trash.append(keyword[i])
         for i in trash:
             keyword.remove(i)
