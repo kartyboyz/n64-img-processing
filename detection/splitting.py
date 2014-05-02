@@ -324,7 +324,6 @@ class EndRace(Detector):
         self.variables['is_started'] = False
         # Populate dictionary with race duration
         self.variables['duration'] = np.ceil((cur_count / self.variables['frame_rate']) - self.variables['start_time'])
-        self.variables['events'].append([(self.variables['start_time'], self.variables['duration'])])
         # On end race, deactivate EndRaceDetector, activate StartRaceDetector, BoxExtractor, and CharDetector
         self.deactivate()
         self.activate('StartRace')
