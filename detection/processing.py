@@ -341,7 +341,7 @@ class Items(Detector):
                     # If boo is last item in item_hist, item was stolen
                     if self.item_hist[len(self.item_hist) - 1] == 'Boo.png':
                         # Must check if the stolen item was a triple boost
-                        if 'TripleMushroom.png' in self.item_hist and 'SingleMushroom.png' in self.item_hist:
+                        if 'TripleMushroom.png' in self.item_hist and 'Mushroom.png' in self.item_hist:
                             self.create_event(event_type='Item',
                                         event_subtype='Stolen',
                                         timestamp=np.floor(timestamp),
@@ -370,7 +370,7 @@ class Items(Detector):
                
                     # If boo is the first item in item_hist, an item was stolen
                     elif self.item_hist[0] == 'Boo.png':
-                        if 'TripleMushroom.png' in self.item_hist and 'SingleMushroom.png' in self.item_hist:
+                        if 'TripleMushroom.png' in self.item_hist and 'Mushroom.png' in self.item_hist:
                             self.create_event(event_type='Item',
                                             event_subtype='Get',
                                             timestamp=np.floor(timestamp),
@@ -384,7 +384,7 @@ class Items(Detector):
                                 print "[%s]: Player %d received a triple mushroom" % (self.name(), player)
                
                     # Must check if we got a triple boost
-                    elif self.item_hist[len(self.item_hist) - 1] == 'SingleMushroom.png' and \
+                    elif self.item_hist[len(self.item_hist) - 1] == 'Mushroom.png' and \
                         self.item_hist[len(self.item_hist) - 2] == 'TripleMushroom.png':
                         self.item_hist.clear()
                         self.blank_count ^= 1
@@ -415,7 +415,7 @@ class Items(Detector):
             elif mask[1] == 'TripleMushroom.png':
                 self.item_hist.append(mask[1])
             # If item detected is SingleMushroom and TripleMushroom in item_hist, append it
-            elif mask[1] == 'SingleMushroom.png' and self.item_hist.in_buffer('TripleMushroom'):
+            elif mask[1] == 'Mushroom.png' and self.item_hist.in_buffer('TripleMushroom'):
                 self.item_hist.append(mask[1])
             # If item found after BlankBox is not Boo, SingleMushroom, or same item, clear item_hist and toggle blank_count
             else:
