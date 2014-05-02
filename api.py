@@ -16,12 +16,6 @@ import boto.utils
 
 from const import *
 
-def log(message, level=syslog.LOG_INFO):
-    if DAEMON:
-        syslog.syslog(level, message)
-    else:
-        print message
-
 class EC2(object):
     def killself(self):
         asg = boto.connect_autoscale()
@@ -51,9 +45,8 @@ class SQS(object):
             rv = {'msg':raw_msg,'id':video_id,'url':url}
             return rv
         except UnicodeDecodeError:
-            log("JSON Dumps failed")
             filename = None
-        except:
+        except Exception as ex:
             # No messages
             return None
 
@@ -63,7 +56,6 @@ class SQS(object):
             msg.set_body(payload)
             return self.queues[queue_name].write(msg)
         except SQSError:
-            log( "Could not write to queue %s" % (queue_name))
             return None
 
 class S3(object):
@@ -111,7 +103,7 @@ class DB(object):
         if res.ok:
             return res.json()['player_regions']
         else:
-            log('DB Error: ' + res.json()['message'])
+            print 'DB Error: ' + res.json()['message']
             return None
 
     def post_events(self, race_id, events):
@@ -130,6 +122,17 @@ class DB(object):
     def post_race(self, session_id, payload):
         """Sends race JSON object to database for storage"""
         url = '%s:%d/sessions/%d/races' % (self.database, self.port, session_id)
+        headers = {'content-type': 'application/json'}
+        json_payload = json.dumps(payload)
+        res = requests.post(url, data=json.dumps(payload), headers=headers)
+        if res.ok:
+            return res.json()['id']
+        else:
+            return None
+
+    def update_race(self, race_id, payload):
+        """Sends race JSON object to database for storage"""
+        url = '%s:%d/races/%d' % (self.database, self.port, race_id)
         headers = {'content-type': 'application/json'}
         json_payload = json.dumps(payload)
         res = requests.post(url, data=json.dumps(payload), headers=headers)

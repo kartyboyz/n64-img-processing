@@ -1,7 +1,7 @@
 """Contains AWS constant fields"""
 
 # Queue and bucket names that we care about
-QUEUES = ['process-queue', 'split-queue']
+QUEUES = ['process-queue', 'audio-queue', 'split-queue']
 BUCKETS= ['session-videos', 'race-videos', 'race-audio']
 
 SESSION_BUCKET_BASE = 'https://session-videos.s3.amazonaws.com/'

@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 """Job dispatcher for MK64 analytics engine"""
+import sys
+# Fix pythonpath
+sys.path.append('/usr/local/lib/python2.7/site-packages')
+
 import argparse
 import json
 import multiprocessing
-import os, sys, pwd, grp, signal, syslog
+import os, pwd, grp, signal, syslog
 import time
 from subprocess import call
 
@@ -16,6 +20,8 @@ from const import *
 
 DAEMON = False
 KILL_COUNT = 360
+
+
 
 sqs = api.SQS(QUEUES)
 s3 = api.S3(BUCKETS)
@@ -33,7 +39,7 @@ def split_session(session_id, url, rv_queue, job_data):
         # Process
         rv = phase_0.main(int(session_id), open(video_file))
         # Split session, update DB
-        parse_events('session', video_file, rv)
+        parse_races('session', video_file, rv)
         # Cleanup
         os.remove(video_file)
         rv_queue.put(rv)
@@ -43,24 +49,30 @@ def split_session(session_id, url, rv_queue, job_data):
 
 
 def process_race(race_id, url, rv_queue, job_data):
-    video_file = s3.download_url('race', url, race_id)
-    if video_file is not None:
-        # Get player regions
-        rv = phase_1.main(job_data['player_regions'], open(video_file))
-        # Send events to database
-        for race_vars in rv:
-            db.post_events(race_id, race_vars['events'])
-        # Cleanup
-        os.remove(video_file)
-        rv_queue.put(1)
+    if job_data['processed'] is not True:
+        video_file = s3.download_url('race', url, race_id)
+        if video_file is not None:
+            # Get player regions
+            rv = phase_1.main(job_data['player_regions'], open(video_file))
+            # Send events to database
+            for race_vars in rv:
+                db.post_events(race_id, race_vars['events'])
+                payload = {"processed" : true}
+                db.update_race(race_id, payload)
+            # Cleanup
+            os.remove(video_file)
+            rv_queue.put(1)
+        else:
+            rv_queue.put(None)
     else:
-        rv_queue.put(None)
+        rv_queue.put(1)
 
-def process_audio(race_id, url, rv_queue):
+def process_audio(race_id, url, rv_queue, job_data):
     audio_file = s3.download_url('audio', url, race_id)
     if audio_file is not None:
-        rv = aud.detect(audio)
-        db.post_events(rv)
+        rv = aud.detect(audio_file)
+        print rv
+        db.post_events(race_id, rv)
         rv_queue.put(1)
     else:
         rv_queue.put(None)
@@ -89,11 +101,12 @@ def cleanup():
     for worker in JOBS:
         worker.join()
 
-def parse_events(event_type, video_file, rv):
+def parse_races(event_type, video_file, rv):
     if event_type is 'session':
         for idx, race in enumerate(rv[0]['events']):
             ext = video_file.split('.')[-1]
-            filename='race%i.%s' % (idx, ext)
+            filename ='race%i.%s' % (idx, ext)
+            wavfile = filename.split('.')[0]+'.wav'
             start = race['start_time']
             duration = race['duration']
             split_video(video_file, filename, start, duration)
@@ -101,18 +114,19 @@ def parse_events(event_type, video_file, rv):
 
             # S3 Upload
             video_key = s3.upload(bucket='race-videos', file_path=filename)
-            audio_key = s3.upload(bucket='race-audio', file_path=filename.split('.')[0]+'.wav')
-
-            # Notify audio queue
+            audio_key = s3.upload(bucket='race-audio', file_path=wavfile)
 
             # Clean
             os.remove(filename)
+            os.remove(wavfile)
 
             # DB Notify
-            url = '%s%s' % (RACE_BUCKET_BASE, video_key)
+            vid_url = '%s%s' % (RACE_BUCKET_BASE, video_key)
+            aud_url = '%s%s' % (AUDIO_BUCKET_BASE, audio_key)
             session_id = rv[0]['session_id']
-            payload = {
-                'video_url' : url,
+            db_payload = {
+                'video_url' : vid_url,
+                'audio_url' : aud_url,
                 'start_time' : race['start_time'],
                 'duration' : race['duration'],
                 'characters' : rv[0]['characters'],
@@ -121,14 +135,13 @@ def parse_events(event_type, video_file, rv):
                 'processed' : False,
                 'video_split' : True
             }
-            db.post_race(session_id, payload)
-    elif event_type is 'race':
-        # Update DB with events dump
-        pass
-    elif event_type is 'audio':
-        # Update DB with events dump
-        pass
-
+            race_id = db.post_race(session_id, db_payload)
+            # Notify audio queue
+            audio_payload = {
+                'id' : race_id,
+                'video_url' : aud_url
+            }
+            sqs.write('audio-queue', audio_payload)
 
 def daemonize():
     if os.fork() == 0:
@@ -168,14 +181,16 @@ def dispatch_jobs():
         while True:
             for q in QUEUES:
                 # Check for phase0 jobs
-                job = sqs.listen(q)
                 log('Listening on '+q)
+                job = sqs.listen(q)
+                print job
                 if job is not None:
                     count = 0
-                    log('Launching worker')
+                    log('Launching worker for ' + q)
                     job_data = json.loads(job['msg'].get_body())
                     worker = multiprocessing.Process(target=JOB_MAP[q],
-                                                     args=(job['id'], job['url'], rv_queue, job_data))
+                                                     args=(job['id'], job['url'],
+                                                           rv_queue, job_data))
                     worker.start()
                     JOBS.append(worker)
                     # Wait for job to complete
@@ -189,7 +204,7 @@ def dispatch_jobs():
             if count >= KILL_COUNT:
                 api.EC2.killself()
     except Exception as ex:
-        log('Exiting due to: \n' +ex)
+        log('Exiting due to: \n' + ex.message)
         cleanup()
 
 def main():
