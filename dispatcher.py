@@ -55,7 +55,7 @@ def process_race(race_id, url, rv_queue, job_data):
         video_file = s3.download_url('race', url, race_id)
         if video_file is not None:
             # Get player regions
-            rv = phase_1.main(job_data['player_regions'], open(video_file), map=job_data['course'])
+            rv = phase_1.main(job_data['player_regions'], open(video_file), course=job_data['course'])
             # Send events to database
             for race_vars in rv:
                 db.post_events(race_id, race_vars['events'])
@@ -132,7 +132,7 @@ def parse_races(event_type, video_file, rv):
                 'start_time' : race['start_time'],
                 'duration' : race['duration'],
                 'characters' : rv[0]['characters'],
-                'course' : rv[0]['map'],
+                'course' : race['course']
                 'player_regions' : rv[0]['locked_regions'],
                 'processed' : False,
                 'video_split' : True
