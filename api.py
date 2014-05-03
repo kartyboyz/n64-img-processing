@@ -138,7 +138,7 @@ class DB(object):
 
     def update_session(self, session_id):
         """Sends race JSON object to database for storage"""
-        url = '%s:%d/sessions/%d' % (self.database, self.port, session_id)
+        url = '%s:%d/sessions/%s' % (self.database, self.port, session_id)
         headers = {'content-type': 'application/json'}
         payload = {
             'video_split' : True

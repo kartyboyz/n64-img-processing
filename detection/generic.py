@@ -180,10 +180,16 @@ class Engine():
         self.name = video_source
         self.capture = cv.VideoCapture(video_source)
         self.ret, self.frame = self.capture.read()
-
         self.variables = variables
         self.barrier = None
         self.manager = None
+
+        # Fix framerate for Workers
+        self.framerate = self.capture.get(5)
+        if self.framerate == 0:
+            self.framerate = 30
+        for var in variables:
+            var['frame_rate'] = self.framerate
 
         #DEBUG
         self.toggle = 1
