@@ -11,7 +11,12 @@ import cv2 as cv
 
 import multiprocessing as mp
 import time
+import syslog
 
+
+
+def log(message, level=syslog.LOG_INFO):
+    syslog.syslog(level, message)
 
 class BrokenBarrierError(Exception):
     """Class for exception handling."""

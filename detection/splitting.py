@@ -14,6 +14,7 @@ import cv2 as cv
 
 # Project-specific
 import utility
+from utility import log
 from generic import Detector
 
 from config import DEBUG_LEVEL
@@ -117,7 +118,7 @@ class Characters(Detector):
                 if minval <= self.threshold:
                     self.handle(frame, player, mask, cur_count, minloc)
                     if DEBUG_LEVEL > 0:
-                        print "[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval)
+                        log("[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval))
         else:
             for mask in self.masks:
                 if frame.shape != self.default_shape[0]:
@@ -129,7 +130,7 @@ class Characters(Detector):
                 if minval <= self.threshold:
                     self.handle(frame, player, mask, cur_count, minloc)
                     if DEBUG_LEVEL > 0:
-                        print "[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval)
+                        log("[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval))
 
     def handle(self, frame, player, mask, cur_count, location):
         """Perform checks and store variables. Overrides superclass method."""
@@ -156,20 +157,25 @@ class Characters(Detector):
                 max_place = element[1]
 
         # For every possible player number, find the most recent match
-        for ii in xrange(1, (max_place + 1)):
-            timestamp = 0
-            for element in semi_ordered:
-                # Check if the char is player ii and if it was found after <timestamp>
-                if element[1] == ii and element[2] > timestamp:
-                    timestamp = element[2]
-                    temp = (element[0], element[1])
-            ordered.append(temp)
-        chars = [image[0].split(".", 1)[0] for image in ordered]
-        if DEBUG_LEVEL > 0:
-            for p, ch in enumerate(chars):
-                print "Player %i is %s" % ((p+1), ch)
-        self.variables['characters'] = chars
-        self.variables['num_players'] = len(ordered)
+        try:
+            for ii in xrange(1, (max_place + 1)):
+                timestamp = 0
+                for element in semi_ordered:
+                    # Check if the char is player ii and if it was found after <timestamp>
+                    if element[1] == ii and element[2] > timestamp:
+                        timestamp = element[2]
+                        temp = (element[0], element[1])
+                ordered.append(temp)
+            chars = [image[0].split(".", 1)[0] for image in ordered]
+            if DEBUG_LEVEL > 0:
+                for p, ch in enumerate(chars):
+                    log("Player %i is %s" % ((p+1), ch))
+            self.variables['characters'] = chars
+            self.variables['num_players'] = len(ordered)
+        except UnboundLocalError:
+            # No chars detected?
+            self.variables['characters'] = None
+            self.variables['num_players'] = 0
 
     def sort_characters(self, characters, frame):
         """Sorting algorithm that ranks based on quadrant."""
@@ -209,7 +215,7 @@ class Map(Detector):
                 self.variables['map'] = self.map.split('.')[0]
                 self.waiting_black = False
                 if DEBUG_LEVEL > 0:
-                    print 'Locked in map as %s' % (self.map.split('.')[0])
+                    log('Locked in map as %s' % (self.map.split('.')[0]))
             else:
                 return
         if (cur_count % self.freq) == 0:
@@ -245,7 +251,7 @@ class Map(Detector):
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
                     if DEBUG_LEVEL > 0:
-                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+                        log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
             else:
                 binary_roi = self.constrain_roi(binary)
                 for mask in self.masks:
@@ -265,14 +271,14 @@ class Map(Detector):
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
                     if DEBUG_LEVEL > 0:
-                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+                        log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
 
     def handle(self, frame, player, mask, cur_count, location):
         """Set variables. Overrides superclass method."""
         self.map = mask[1]
         self.waiting_black = True
         if DEBUG_LEVEL > 0:
-            print '[%s]: Map is: %s' % (self.name(), mask[1].split('.')[0])
+            log('[%s]: Map is: %s' % (self.name(), mask[1].split('.')[0]))
 
     def constrain_roi(self, frame):
         """"Constrains frame w.r.t. Maps. Overrides superclass method."""
@@ -295,7 +301,7 @@ class StartRace(Detector):
         # Populate dictionary with start time
         self.variables['start_time'] = np.floor(cur_count / self.variables['frame_rate']) - 2
         if DEBUG_LEVEL > 0:
-            print '[%s]: Race started at %d seconds' % (self.name(), self.variables['start_time'])
+            log('[%s]: Started at %d seconds' % (self.name(), self.variables['start_time']))
             
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. StartRace/BeginRace. Overrides superclass method."""
@@ -332,6 +338,7 @@ class EndRace(Detector):
         self.activate('BoxExtractor')
         # Store as event for splitting
         self.create_event(start_time=self.variables['start_time'],
-                          duration=self.variables['duration'])
+                          duration=self.variables['duration'],
+                          course=self.variables['map'])
         if DEBUG_LEVEL > 0:
-            print "[%s] End of race detected at t=%2.2f seconds" % (self.name(), self.variables['duration'])
+            log("[%s] Duration = %2.2f seconds" % (self.name(), self.variables['duration']))
