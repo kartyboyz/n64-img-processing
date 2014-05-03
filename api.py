@@ -123,7 +123,6 @@ class DB(object):
         """Sends race JSON object to database for storage"""
         url = '%s:%d/sessions/%d/races' % (self.database, self.port, session_id)
         headers = {'content-type': 'application/json'}
-        json_payload = json.dumps(payload)
         res = requests.post(url, data=json.dumps(payload), headers=headers)
         if res.ok:
             return res.json()['id']
@@ -134,9 +133,15 @@ class DB(object):
         """Sends race JSON object to database for storage"""
         url = '%s:%d/races/%d' % (self.database, self.port, race_id)
         headers = {'content-type': 'application/json'}
-        json_payload = json.dumps(payload)
         res = requests.put(url, data=json.dumps(payload), headers=headers)
-        if res.ok:
-            return res.json()['id']
-        else:
-            return None
+        return res.ok
+
+    def update_session(self, session_id):
+        """Sends race JSON object to database for storage"""
+        url = '%s:%d/sessions/%d' % (self.database, self.port, session_id)
+        headers = {'content-type': 'application/json'}
+        payload = {
+            'video_split' : True
+        }
+        res = requests.put(url, data=json.dumps(payload), headers=headers)
+        return res.ok

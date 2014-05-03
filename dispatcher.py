@@ -40,6 +40,8 @@ def split_session(session_id, url, rv_queue, job_data):
         rv = phase_0.main(int(session_id), open(video_file))
         # Split session, update DB
         parse_races('session', video_file, rv)
+
+        db.update_session(session_id)
         # Cleanup
         os.remove(video_file)
         rv_queue.put(rv)
