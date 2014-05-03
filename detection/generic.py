@@ -14,6 +14,7 @@ import numpy as np
 # Project-specific
 import parallel
 import utility
+import detection
 
 from config import DEBUG_LEVEL
 
@@ -197,6 +198,12 @@ class Engine():
         """Appends new detectors to Workers, wrapping the ProcessManager."""
         if self.barrier is None:
             raise RuntimeError("You need to call setup_processes() first")
+        if 'KoopaTroopaBeach' not in self.variables[0]['course']:
+            # Find SHORTCUT and remove it
+            for detector in detect_list:
+                if isinstance(detector, detection.Shortcut):
+                    detect_list.remove(detector)
+                    break
         self.manager.set_detectors(detect_list)
         self.manager.start_workers()
 

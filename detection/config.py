@@ -30,6 +30,7 @@ class player(object):
         self.manager = multiprocessing.Manager()
         self.d = self.manager.dict({
            'frame_rate' : float(30),
+           'course' : None,
            'place' : -1,
            'lap' : 1,
            'is_started' : False,

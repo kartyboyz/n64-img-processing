@@ -53,7 +53,7 @@ def process_race(race_id, url, rv_queue, job_data):
         video_file = s3.download_url('race', url, race_id)
         if video_file is not None:
             # Get player regions
-            rv = phase_1.main(job_data['player_regions'], open(video_file))
+            rv = phase_1.main(job_data['player_regions'], open(video_file), map=job_data['course'])
             # Send events to database
             for race_vars in rv:
                 db.post_events(race_id, race_vars['events'])
@@ -141,7 +141,7 @@ def parse_races(event_type, video_file, rv):
                 'id' : race_id,
                 'video_url' : aud_url
             }
-            sqs.write('audio-queue', audio_payload)
+            sqs.write('audio-queue', json.dumps(audio_payload))
 
 def daemonize():
     if os.fork() == 0:

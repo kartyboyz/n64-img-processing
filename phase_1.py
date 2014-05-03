@@ -10,9 +10,11 @@ import sys
 from detection.config import DEBUG_LEVEL
 
 import detection
-def debug_main(session_id, video_file):
+def debug_main(session_id, video_file, course):
     """Configuration Variables/Data Setup."""
     VARIABLES = [detection.config.player() for _ in range(4)]
+    for player in VARIABLES:
+        player['course'] = course
 
     # Detector Setup
     BLACK = detection.BlackFrame()
@@ -51,7 +53,6 @@ def debug_main(session_id, video_file):
     # [p3 s3]: (4, 317), (242, 475)
     # [p4 test]: (321, 629), (244, 477)
     # [p4 s3]: (320, 638), (242, 475)
-
     SHORTCUT = detection.Shortcut()
     LAP = detection.Lap(masks_dir='./masks/laps/',
                         freq=1,
@@ -69,9 +70,12 @@ def debug_main(session_id, video_file):
     return rv
 
 
-def main(player_regions, video_file):
+def main(player_regions, video_file, course):
     """Configuration Variables/Data Setup."""
     VARIABLES = [detection.config.player() for _ in range(len(player_regions))]
+    for player in VARIABLES:
+        player['course'] = course
+
     # Detector Setup
     BLACK = detection.BlackFrame()
     ITEMS = detection.Items(masks_dir='./masks/items/',
