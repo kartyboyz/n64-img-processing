@@ -198,12 +198,17 @@ class Engine():
         """Appends new detectors to Workers, wrapping the ProcessManager."""
         if self.barrier is None:
             raise RuntimeError("You need to call setup_processes() first")
-        if 'KoopaTroopaBeach' not in self.variables[0]['course']:
-            # Find SHORTCUT and remove it
-            for detector in detect_list:
-                if isinstance(detector, detection.Shortcut):
-                    detect_list.remove(detector)
-                    break
+        try:
+            if 'KoopaTroopaBeach' not in self.variables[0]['course']:
+                # Find SHORTCUT and remove it
+                for detector in detect_list:
+                    if isinstance(detector, detection.Shortcut):
+                        detect_list.remove(detector)
+                        break
+        except:
+            # Assume phase 0
+            pass
+
         self.manager.set_detectors(detect_list)
         self.manager.start_workers()
 
