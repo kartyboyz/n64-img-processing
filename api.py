@@ -135,7 +135,7 @@ class DB(object):
         url = '%s:%d/races/%d' % (self.database, self.port, race_id)
         headers = {'content-type': 'application/json'}
         json_payload = json.dumps(payload)
-        res = requests.post(url, data=json.dumps(payload), headers=headers)
+        res = requests.put(url, data=json.dumps(payload), headers=headers)
         if res.ok:
             return res.json()['id']
         else:
