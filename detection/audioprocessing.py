@@ -44,7 +44,7 @@ class AudioAPI(object):
         winstep = int(winsize/3)
         sbeg, send, beg, end = self.cutmeopen_mom(sig,fs,winsize)
         for i in range(0,len(beg)):
-            if((end[i]-beg[i])>110):
+            if((end[i]-beg[i])>250):
                 time = self.gettime(beg[i],winstep,fs)
                 timestamp =  (np.floor(time*10))/10
                 self.create_event(event_type="Tag",
@@ -116,7 +116,6 @@ class AudioAPI(object):
         sh = list()
         for i in xrange(len(responses)):
             if responses[i] and responses[i].text:
-                info = eval(responses[i].text)
                 for watches in self.watches:
                     if watches in responses[i].text:
                         watch.append(buff_beg[i])
@@ -153,9 +152,8 @@ class AudioAPI(object):
                                 params=parameters,
                                 headers=headers,
                                 files=flac)
-            print req.text
             return req
-        except:
+        except Exception as ex:
             return None
 
     def get_buffers(self,begs,ends):
@@ -164,7 +162,7 @@ class AudioAPI(object):
         for j in range(0,len(begs)):
             buff_beg.append(begs[j])
             for i in range(j,len(ends)):
-                if((ends[i]-buff_beg[j])>150):
+                if((ends[i]-buff_beg[j])>250):
                     buff_end.append(ends[i-1])
                     break
                 elif (ends[i] == ends[len(ends)-1]):
@@ -209,18 +207,18 @@ class AudioAPI(object):
         samp = win*(int(winsize/3))
         return samp
 
-    def tossme(self, begs,ends):
-        utts = len(begs)
-        trashb = []
-        trashe = []
-        for i in range(0,utts):
-            if((ends[i]-begs[i])<3):
-                trashb.append(begs[i])
-                trashe.append(ends[i])
-        for i in range(0,len(trashe)):
-            begs.remove(trashb[i])
-            ends.remove(trashe[i])
-        return begs, ends
+    def tossme(self,begs1,ends1):
+        trashb1 = []
+        trashe1 = []
+        # REMOVE UTTERANCES THAT ARE TOO SMALL
+        for i in range(0,len(begs1)):
+            if((ends1[i]-begs1[i])<12):
+                trashb1.append(begs1[i])
+                trashe1.append(ends1[i])
+        for i in range(0,len(trashe1)):
+            begs1.remove(trashb1[i])
+            ends1.remove(trashe1[i])
+        return begs1, ends1
 
     def preemphasis(self, signal,coeff=0.95):
         return np.append(signal[0],signal[1:]-coeff*signal[:-1])
@@ -321,23 +319,6 @@ class AudioAPI(object):
             begs1.remove(garb1[i])
             ends1.remove(gare1[i])
      
-        return begs1, ends1
-           
-    def tossme(self,begs1,ends1):
-        trashb1 = []
-        trashe1 = []
-       
-        # REMOVE UTTERANCES THAT ARE TOO SMALL
-        for i in range(0,len(begs1)):
-            if((ends1[i]-begs1[i])<12):
-                trashb1.append(begs1[i])
-                trashe1.append(ends1[i])
-               
-        for i in range(0,len(trashe1)):
-            begs1.remove(trashb1[i])
-            ends1.remove(trashe1[i])
-           
-       
         return begs1, ends1
 
     def other_chop(self,normtea,trshu):
