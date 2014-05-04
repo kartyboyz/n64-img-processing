@@ -120,13 +120,13 @@ def instructions():
     print "\t<space> pauses/unpauses current frame\n\n"
 
 if __name__ == '__main__':
-    if len(sys.argv) is not 3:
+    if len(sys.argv) is not 4:
         print "Please specify a race ID and video file."
         print "Usage:"
-        print "%s <race ID> <video source>" % (sys.argv[0])
+        print "%s <race ID> <video source> <course-name>" % (sys.argv[0])
         exit(-1)
     instructions()
-    rv = debug_main(int(sys.argv[1]), open(sys.argv[2]))
+    rv = debug_main(int(sys.argv[1]), open(sys.argv[2]), sys.argv[3])
     if rv != None:
         for ii in xrange(len(rv)):
             if len(rv[ii]['events']) != 0 and rv[ii]['events'][-1]['event_info'] == "KoopaTroopaBeachCave":

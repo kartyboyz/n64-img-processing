@@ -100,7 +100,7 @@ class Characters(Detector):
                 return
         if not self.variables['is_started'] and (cur_count % self.freq == 0):
             self.process(focus_region, cur_count, player)
-            if DEBUG_LEVEL > 2:
+            if DEBUG_LEVEL > 3:
                 cv.imshow(self.name(), focus_region)
                 cv.waitKey(1)
 
@@ -117,7 +117,7 @@ class Characters(Detector):
                 minval, _, minloc, _ = cv.minMaxLoc(distances)
                 if minval <= self.threshold:
                     self.handle(frame, player, mask, cur_count, minloc)
-                    if DEBUG_LEVEL > 0:
+                    if DEBUG_LEVEL > 1:
                         log("[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval))
         else:
             for mask in self.masks:
@@ -129,7 +129,7 @@ class Characters(Detector):
                 minval, _, minloc, _ = cv.minMaxLoc(distances)
                 if minval <= self.threshold:
                     self.handle(frame, player, mask, cur_count, minloc)
-                    if DEBUG_LEVEL > 0:
+                    if DEBUG_LEVEL > 1:
                         log("[%s]: Found %s :-) ------> %s" % (self.name(), mask[1], minval))
 
     def handle(self, frame, player, mask, cur_count, location):
@@ -245,12 +245,12 @@ class Map(Detector):
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
                         best_mask = scaled_mask
-                    if DEBUG_LEVEL > 2:
+                    if DEBUG_LEVEL > 3:
                         cv.imshow('Map Thresh', binary_roi)
                         cv.waitKey(1)
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
-                    if DEBUG_LEVEL > 0:
+                    if DEBUG_LEVEL > 1:
                         log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
             else:
                 binary_roi = self.constrain_roi(binary)
@@ -265,12 +265,12 @@ class Map(Detector):
                     if minval <= self.threshold and minval < best_val:
                         best_val = minval
                         best_mask = scaled_mask
-                    if DEBUG_LEVEL > 2:
+                    if DEBUG_LEVEL > 3:
                         cv.imshow('Map Thresh', binary_roi)
                         cv.waitKey(1)
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
-                    if DEBUG_LEVEL > 0:
+                    if DEBUG_LEVEL > 1:
                         log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
 
     def handle(self, frame, player, mask, cur_count, location):

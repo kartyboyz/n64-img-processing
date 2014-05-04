@@ -85,7 +85,7 @@ class Worker(multiprocessing.Process):
                         self.bounds = self.variables['player_regions'][0]
                 region = frame[self.bounds[1][0] : self.bounds[1][1],
                                self.bounds[0][0] : self.bounds[0][1]]
-                if DEBUG_LEVEL > 1:
+                if DEBUG_LEVEL > 2:
                     # This is just for fancy visual "animation" :-p
                     dbg = region.copy()
                     cv.putText(dbg, "Processing %i" % (i), (10, 40),
@@ -117,11 +117,11 @@ class Worker(multiprocessing.Process):
                             d.detect(region, self.count, self.num)
                 self.count += 1
 
-            if DEBUG_LEVEL > 0:
-                print "[%s] Has processed %i buffered frames" % (self.name, BUFFER_LENGTH)
+            if DEBUG_LEVEL > 1:
+                log("[%s] Has processed %i buffered frames" % (self.name, BUFFER_LENGTH))
             self.event.clear()
             self.barrier.wait()
-        print '[%s] Exiting' % self.name
+        log('[%s] Exiting' % self.name)
 
 class ProcessManager(object):
     """Handles subprocesses & their shared memory."""

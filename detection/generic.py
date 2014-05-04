@@ -16,8 +16,8 @@ import parallel
 import utility
 import detection
 
+from utility import log
 from config import DEBUG_LEVEL
-
 
 class Detector(object):
     """Super (and abstract) class for all detectors, written specifically for MK64 events."""
@@ -111,7 +111,7 @@ class Detector(object):
             if best_mask is not None:
                 self.handle(frame, player, best_mask, cur_count, minloc)
                 if DEBUG_LEVEL > 1:
-                    print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+                    log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
         else:
             frame_roi = self.constrain_roi(frame)
             for mask in self.masks:
@@ -127,7 +127,7 @@ class Detector(object):
             if best_mask is not None:
                 self.handle(frame, player, best_mask, cur_count, minloc)
                 if DEBUG_LEVEL > 1:
-                    print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
+                    log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
 
     def handle(self, frame, player, mask, cur_count, location):
         """
@@ -171,7 +171,7 @@ class BlackFrame(Detector):
         """Perform checks and debounce. Overrides superclass method."""
         self.variables['is_black'] = True
         if DEBUG_LEVEL > 1:
-            print "[%s]: Handled" % (self.name())
+            log("[%s]: Handled" % (self.name()))
 
 
 class Engine():
@@ -193,7 +193,7 @@ class Engine():
 
         #DEBUG
         self.toggle = 1
-        print "[%s] initialization complete." % (self.__class__.__name__)
+        log("[%s] initialization complete." % (self.__class__.__name__))
 
     def setup_processes(self, num, regions):
         """Generates child processes."""
@@ -231,7 +231,7 @@ class Engine():
                     if not self.ret:
                         self.clear_buffer(offset=offset + size + 1)
                         raise StopIteration
-                    if DEBUG_LEVEL > 1:
+                    if DEBUG_LEVEL >  2:
                         cv.imshow(self.name, self.frame)
                         frame_count += 1
                         key = cv.waitKey(self.toggle)
@@ -270,6 +270,7 @@ class Engine():
 
     def cleanup(self):
         """Frees memory, alerts child processes to finish."""
+        log("[%s] Cleaning up", self.__class__.__name__)
         self.manager.close()
         self.capture.release()
         self.barrier.abort()

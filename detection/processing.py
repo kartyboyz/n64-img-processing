@@ -10,6 +10,7 @@ import cv2 as cv
 
 # Project-specific
 import utility
+from utility import log
 from generic import Detector
 
 from config import DEBUG_LEVEL
@@ -42,7 +43,7 @@ class Shortcut(Detector):
         # If at least 80% of the frame is true black, race has stopped
         if black_count <= float(16):
             self.handle(frame, player, cur_count)
-        if DEBUG_LEVEL > 2:
+        if DEBUG_LEVEL > 3:
             cv.imshow('thresh', gray)
             cv.waitKey(1)
 
@@ -61,7 +62,7 @@ class Shortcut(Detector):
                               place=self.variables['place'],
                               event_info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
-                print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
+                log("[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp))
         # Does it meet the specifications for debouncing?
         elif (timestamp - self.past_timestamp) > 17.0:
             self.past_timestamp = timestamp
@@ -73,7 +74,7 @@ class Shortcut(Detector):
                               place=self.variables['place'],
                               event_info="KoopaTroopaBeachCave")
             if DEBUG_LEVEL > 0:
-                print "[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp)
+                log("[%s]: Shortcut detected at %s seconds" % (self.name(), timestamp))
 
 
 class FinishRace(Detector):
@@ -102,9 +103,9 @@ class FinishRace(Detector):
                         best_mask = scaled_mask
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
-                    if DEBUG_LEVEL > 0:
-                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
                     if DEBUG_LEVEL > 1:
+                        log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
+                    if DEBUG_LEVEL > 2:
                         cv.imshow('thresh', binary)
                         cv.waitKey(1)
             else:
@@ -121,9 +122,9 @@ class FinishRace(Detector):
                         best_mask = scaled_mask
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
-                    if DEBUG_LEVEL > 0:
-                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
-                    if DEBUG_LEVEL > 2:
+                    if DEBUG_LEVEL > 1:
+                        log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
+                    if DEBUG_LEVEL > 3:
                         cv.imshow('thresh', binary)
                         cv.waitKey(1)
 
@@ -149,7 +150,7 @@ class FinishRace(Detector):
                         place=self.variables['place'],
                         event_info='4')
         if DEBUG_LEVEL > 0:
-            print "[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1][0])
+            log("[%s]: Player %s finished in place: %s" % (self.name(), player, mask[1][0]))
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. FinishRace. Overrides superclass method."""
@@ -185,8 +186,8 @@ class PositionChange(Detector):
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
                     if DEBUG_LEVEL > 1:
-                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
-                    if DEBUG_LEVEL > 1:
+                        log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
+                    if DEBUG_LEVEL > 3:
                         cv.imshow('thresh', binary_roi)
                         cv.waitKey(1)
             else:
@@ -205,8 +206,8 @@ class PositionChange(Detector):
                 if best_mask is not None:
                     self.handle(frame, player, best_mask, cur_count, minloc)
                     if DEBUG_LEVEL > 1:
-                        print "[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val)
-                    if DEBUG_LEVEL > 2:
+                        log("[%s]: Found %s :-) ------> %s" % (self.name(), best_mask[1], best_val))
+                    if DEBUG_LEVEL > 3:
                         cv.imshow('thresh', binary_roi)
                         cv.waitKey(1)
 
@@ -227,7 +228,7 @@ class PositionChange(Detector):
                               place=self.variables['place'],
                               event_info=mask[1][0])
             if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1])
+                log("[%s]: Player %s place: %s" % (self.name(), player, self.buffer[len(self.buffer) - 1]))
         # Check if the found mask is different than the previous one
         elif mask[1][0] != self.buffer[len(self.buffer) - 2]:
             # Update place state variable and create an event
@@ -244,8 +245,8 @@ class PositionChange(Detector):
                             place=self.variables['place'],
                             event_info=mask[1][0])
             if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s went from %s place to %s place " % (self.name(), player, 
-                    self.buffer[len(self.buffer) - 2], self.buffer[len(self.buffer) - 1])
+                log("[%s]: Player %s went from %s place to %s place " % (self.name(), player, \
+                    self.buffer[len(self.buffer) - 2], self.buffer[len(self.buffer) - 1]) )
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. PositionChange. Overrides superclass method."""
@@ -274,7 +275,7 @@ class Lap(Detector):
                                   place=self.variables['place'],
                                   event_info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
-                    print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
+                    log("[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap']))
    
             # Fastest lap ever is 2.39 seconds on Wario Stadium (SC)
             elif (timestamp - self.past_timestamp) > 2.38:
@@ -289,7 +290,7 @@ class Lap(Detector):
                                 place=self.variables['place'],
                                 event_info=str(self.variables['lap']))
                 if DEBUG_LEVEL > 0:
-                    print "[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap'])
+                    log("[%s]: Player %s is now on lap %d" % (self.name(), player, self.variables['lap']))
    
         # Deactivate on lap 3 detection
         if self.variables['lap'] >= 3:
@@ -332,8 +333,8 @@ class Items(Detector):
                 self.blank_count ^= 1 # Toggle
                 self.item_hist.append(cur_item)
                 if DEBUG_LEVEL > 0:
-                    print "[%s]: Player %d has a %s" % (self.name(), player, cur_item.split('.')[0])
-   
+                    log("[%s]: Player %d has a %s" % (self.name(), player, cur_item.split('.')[0]))
+
             # Already saw a blank_box. Been long enough since last blank_box
             elif self.blank_count and (timestamp - self.past_timestamp) > 0.6:
                 # item_hist length > 1
@@ -352,12 +353,12 @@ class Items(Detector):
                             self.blank_count ^= 1
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 0:
-                                print "[%s]: Player %d was robbed of a triple mushroom" % (self.name(), player)
+                                log("[%s]: Player %d was robbed of a triple mushroom" % (self.name(), player))
                
                         else:
                             if DEBUG_LEVEL > 0:
-                                print "[%s]: Player %d was robbed of a %s" % \
-                                    (self.name(), player, self.item_hist[len(self.item_hist) - 2])
+                                log("[%s]: Player %d was robbed of a %s" % \
+                                    (self.name(), player, self.item_hist[len(self.item_hist) - 2]))
                             self.create_event(event_type='Item',
                                             event_subtype='Stolen',
                                             timestamp=np.floor(timestamp),
@@ -381,7 +382,7 @@ class Items(Detector):
                             self.blank_count ^= 1
                             self.item_hist.clear()
                             if DEBUG_LEVEL > 0:
-                                print "[%s]: Player %d received a triple mushroom" % (self.name(), player)
+                                log("[%s]: Player %d received a triple mushroom" % (self.name(), player))
                
                     # Must check if we got a triple boost
                     elif self.item_hist[len(self.item_hist) - 1] == 'Mushroom.png' and \
@@ -400,8 +401,8 @@ class Items(Detector):
                                     event_info=self.item_hist[len(self.item_hist) - 1].split('.')[0])
                     self.blank_count ^= 1
                     if DEBUG_LEVEL > 0:
-                        print "[%s] Player %d received a %s" % \
-                            (self.name(), player, self.item_hist[len(self.item_hist) - 1].split('.')[0])
+                        log("[%s] Player %d received a %s" % \
+                            (self.name(), player, self.item_hist[len(self.item_hist) - 1].split('.')[0]))
        
             self.past_timestamp = timestamp # update the past timestamp to reflect the blank_box detection
             self.buffer.clear()
@@ -445,7 +446,7 @@ class Fall(Detector):
                             place=self.variables['place'],
                             event_info="")
             if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s fell off the map" % (self.name(), player)
+                log("[%s]: Player %s fell off the map" % (self.name(), player))
         elif (timestamp - self.past_timestamp) > 8.0:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
@@ -456,7 +457,7 @@ class Fall(Detector):
                             place=self.variables['place'],
                             event_info="")
             if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s fell off the map" % (self.name(), player)
+                log("[%s]: Player %s fell off the map" % (self.name(), player))
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. Fall. Overrides superclass method."""
@@ -481,7 +482,7 @@ class Reverse(Detector):
                             place=self.variables['place'],
                             event_info="ReverseStart")
             if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
+                log("[%s]: Player %s is going in reverse for some reason" % (self.name(), player))
         elif (timestamp - self.past_timestamp) > 8.0:
             self.past_timestamp = timestamp
             self.create_event(event_type=self.name(),
@@ -492,7 +493,7 @@ class Reverse(Detector):
                             place=self.variables['place'],
                             event_info="ReverseStart")
             if DEBUG_LEVEL > 0:
-                print "[%s]: Player %s is going in reverse for some reason" % (self.name(), player)
+                log("[%s]: Player %s is going in reverse for some reason" % (self.name(), player))
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. Reverse. Overrides superclass method."""
@@ -525,7 +526,7 @@ class BeginRace(Detector):
                         place=0,
                         event_info="1")
         if DEBUG_LEVEL > 0:
-            print '[%s]: Race started at %d seconds' % (self.name(), timestamp)
+            log('[%s]: Race started at %d seconds' % (self.name(), timestamp))
 
     def constrain_roi(self, frame):
         """Constrains frame w.r.t. BeginRace/StartRace. Overrides superclass method."""

@@ -1,10 +1,10 @@
 """
 DEBUG_LEVEL: Describes intensity of feedback from video processing.
     = 0     No feedback
-    = 1     Minor feedback      Displaying current frame, print object detections, etc.
-    = 2     Verbose feedback    Output intermediate values for more severe debugging.
-    = 3     More verbose        This level will most likely just be used in development
-                                of features with unknown results.
+    = 1     Minor feedback      Display correctly identified events
+    = 2     Verbose feedback    Log all correct events as well as detected objects, Worker info
+    = 3     Visual              Log all previously mentioned data + show frame and Workers
+    = 4     Very Visual         Log all previouly mentioned data plus binary thresholds
 
     Authors: Johan Mickos   jmickos@bu.edu
              Josh Navon     navonj@bu.edu
