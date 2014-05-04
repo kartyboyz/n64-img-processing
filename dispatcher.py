@@ -132,7 +132,7 @@ def parse_races(event_type, video_file, rv):
                 'start_time' : race['start_time'],
                 'duration' : race['duration'],
                 'characters' : rv[0]['characters'],
-                'course' : race['course']
+                'course' : race['course'],
                 'player_regions' : rv[0]['locked_regions'],
                 'processed' : False,
                 'video_split' : True
