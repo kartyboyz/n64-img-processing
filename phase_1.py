@@ -26,7 +26,7 @@ def debug_main(session_id, video_file, course):
     BEGIN_RACE = detection.BeginRace(masks_dir='./masks/start/',
                                      freq=1,
                                      threshold=0.16,
-                                     default_shape=[(237, 314, 3), (237, 344, 3)])
+                                     default_shape=[(237, 314, 3), (237, 344, 3), (237, 344, 3)])
     FINISH_RACE = detection.FinishRace(masks_dir='./masks/finish/',
                                     freq=1,
                                     threshold=0.16,
@@ -86,7 +86,7 @@ def main(player_regions, video_file, course):
     BEGIN_RACE = detection.BeginRace(masks_dir='./masks/start/',
                                      freq=1,
                                      threshold=0.16,
-                                     default_shape=[(237, 314, 3), (237, 344, 3)])
+                                     default_shape=[(237, 314, 3), (237, 344, 3), (237, 344, 3)])
     FINISH_RACE = detection.FinishRace(masks_dir='./masks/finish/',
                                     freq=1,
                                     threshold=0.16,
