@@ -131,7 +131,7 @@ class DB(object):
 
     def update_race(self, race_id, payload):
         """Sends race JSON object to database for storage"""
-        url = '%s:%d/races/%d' % (self.database, self.port, race_id)
+        url = '%s:%d/races/%s' % (self.database, self.port, race_id)
         headers = {'content-type': 'application/json'}
         res = requests.put(url, data=json.dumps(payload), headers=headers)
         return res.ok

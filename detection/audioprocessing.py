@@ -92,6 +92,7 @@ class AudioAPI(object):
             self.create_event(event_type="Tag",
                         event_subtype="Egg",
                         timestamp=timestamp)
+        self.clean_temp()
         return self.events
 
     def write_tempwav(self, filename, sampling_freq, data):

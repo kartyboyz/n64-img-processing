@@ -39,6 +39,7 @@ def split_session(session_id, url, rv_queue, job_data):
         # Process
         rv = phase_0.main(int(session_id), open(video_file))
         # Split session, update DB
+        log("[Dispatcher] Phase 0 completed. Updating database...")
         parse_races('session', video_file, rv)
 
         db.update_session(session_id)
@@ -56,10 +57,11 @@ def process_race(race_id, url, rv_queue, job_data):
         if video_file is not None:
             # Get player regions
             rv = phase_1.main(job_data['player_regions'], open(video_file), course=job_data['course'])
+            log("[Dispatcher] Phase 1 finished. Updating database...")
             # Send events to database
             for race_vars in rv:
                 db.post_events(race_id, race_vars['events'])
-                payload = {"processed" : true}
+                payload = {"processed" : True}
                 db.update_race(race_id, payload)
             # Cleanup
             os.remove(video_file)
@@ -90,10 +92,9 @@ def split_video(src, dst, start, duration):
         raise
 
 def split_audio(src, dst, start, duration):
-    wav_name = dst.split('.')[0] + '.wav'
     command = ['ffmpeg', '-i', src, '-y',
                 '-vn', '-ac', '2', '-ar', '16000', '-f', 'wav',
-                '-ss', str(start), '-t', str(duration), wav_name]
+                '-ss', str(start), '-t', str(duration), dst]
     ret = call(command)
     if ret != 0:
         # Command failed
@@ -112,7 +113,7 @@ def parse_races(event_type, video_file, rv):
             start = race['start_time']
             duration = race['duration']
             split_video(video_file, filename, start, duration)
-            split_audio(video_file, filename, start, duration)
+            split_audio(video_file, wavfile, start, duration)
 
             # S3 Upload
             video_key = s3.upload(bucket='race-videos', file_path=filename)
