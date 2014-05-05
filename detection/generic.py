@@ -270,7 +270,7 @@ class Engine():
 
     def cleanup(self):
         """Frees memory, alerts child processes to finish."""
-        log("[%s] Cleaning up", self.__class__.__name__)
+        log("[%s] Cleaning up" % (self.__class__.__name__))
         self.manager.close()
         self.capture.release()
         self.barrier.abort()

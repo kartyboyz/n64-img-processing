@@ -15,6 +15,7 @@ import config
 import detection
 import utility
 
+from utility import log
 from config import DEBUG_LEVEL
 
 
