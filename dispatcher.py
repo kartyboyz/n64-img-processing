@@ -75,7 +75,6 @@ def process_audio(race_id, url, rv_queue, job_data):
     audio_file = s3.download_url('audio', url, race_id)
     if audio_file is not None:
         rv = aud.detect(audio_file)
-        print rv
         db.post_events(race_id, rv)
         rv_queue.put(1)
     else:
@@ -83,9 +82,9 @@ def process_audio(race_id, url, rv_queue, job_data):
 
 def split_video(src, dst, start, duration):
     log("Splitting %s into %s" % (src, dst))
-    command = ['ffmpeg', '-i', src, '-y',
+    command = ['ffmpeg', '-ss', str(start),'-i', src, '-y',
               '-vcodec', 'copy', '-acodec', 'copy',
-              '-ss', str(start), '-t', str(duration), dst ]
+               '-t', str(duration), dst ]
     ret = call(command)
     if ret != 0:
         # Command failed
@@ -186,7 +185,6 @@ def dispatch_jobs():
                 # Check for phase0 jobs
                 log('Listening on '+q)
                 job = sqs.listen(q)
-                print job
                 if job is not None:
                     count = 0
                     log('Launching worker for ' + q)
