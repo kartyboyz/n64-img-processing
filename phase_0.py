@@ -43,7 +43,7 @@ def main(session_id, video_file):
                                  buf_len=8)
     START_RACE = detection.StartRace(masks_dir='./masks/start/',
                                      freq=1,
-                                     threshold=0.17,
+                                     threshold=0.15,
                                      default_shape=[(237, 318, 3), (237, 344, 3), (237, 344, 3)])
     MAPS = detection.Map(masks_dir='./masks/maps/',
                             freq=1,
