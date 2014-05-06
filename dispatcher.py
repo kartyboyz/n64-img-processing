@@ -203,7 +203,7 @@ def dispatch_jobs():
             time.sleep(WAIT)
             count += 1
             if count >= KILL_COUNT:
-                api.EC2.killself()
+                api.EC2().killself()
     except Exception as ex:
         log('Exiting due to: \n' + ex.message)
         cleanup()
